@@ -1,11 +1,8 @@
 import os
 import re
 from flask import Flask, request, jsonify
-from slack_sdk import WebClient
-from slack_sdk.errors import SlackApiError
 
 app = Flask(__name__)
-client = WebClient(token=os.environ.get("SLACK_BOT_TOKEN"))
 
 def parse_evening_wash(text):
     data = {}
@@ -26,16 +23,18 @@ def parse_evening_wash(text):
 @app.route('/slack/events', methods=['POST'])
 def slack_events():
     data = request.json
+    print(f"Incoming event: {data}")
     if data.get('type') == 'url_verification':
         return jsonify({'challenge': data['challenge']})
     if 'event' in data:
         event = data['event']
+        print(f"Event type: {event.get('type')}")
+        print(f"Channel: {event.get('channel')}")
+        print(f"Text: {event.get('text', '')[:100]}")
         if event.get('type') == 'message' and not event.get('bot_id'):
-            channel = event.get('channel', '')
             text = event.get('text', '')
-            if 'evening-wash' in channel or 'evening_wash' in channel:
-                parsed = parse_evening_wash(text)
-                print(f"Evening wash parsed: {parsed}")
+            parsed = parse_evening_wash(text)
+            print(f"Parsed data: {parsed}")
     return jsonify({'status': 'ok'})
 
 @app.route('/', methods=['GET'])
