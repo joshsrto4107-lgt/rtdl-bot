@@ -128,7 +128,7 @@ def slack_events():
                 parsed = parse_daily_wash(text)
                 redis_set('daily_wash_latest', parsed)
                 print(f"Daily wash saved: {parsed}")
-            elif 'Week Capacity Report' in text or ('RT' in text and 'ECP' in text and 'DAs' in text):
+           elif ('capacity report' in text.lower() or ('RT' in text and 'ECP' in text and 'DAs' in text and 'Week' in text)):
                 parsed = parse_capacity(text)
                 redis_set('capacity_latest', parsed)
                 print(f"Capacity saved: {parsed}")
