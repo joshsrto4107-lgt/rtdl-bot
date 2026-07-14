@@ -20,29 +20,18 @@ def parse_daily_wash(text):
     data = {}
     total = re.search(r'(\d+)\s*Total Routes', text, re.IGNORECASE)
     if total: data['total_routes'] = total.group(1)
-    reductions = re.search(r'(\d+)\s*Same day reductions?', text, re.IGNORECASE)
-    if reductions: data['reductions'] = reductions.group(1)
     c1 = re.search(r'(\d+)\s*Cycle 1', text, re.IGNORECASE)
     if c1: data['cycle_1'] = c1.group(1)
     c0 = re.search(r'(\d+)\s*Cycle 0', text, re.IGNORECASE)
     if c0: data['cycle_0'] = c0.group(1)
-    same_day = re.search(r'(\d+)\s*Same Day Routes', text, re.IGNORECASE)
-    if same_day: data['same_day'] = same_day.group(1)
-    flex = re.search(r'(\d+)\s*FLEX', text, re.IGNORECASE)
-    if flex: data['flex'] = flex.group(1)
-    c1_waves = re.findall(r'Wave (\d+)\s*First van in[:\-\s]*([\d:]+).*?Last van out[:\-\s]*([\d:]+)', text, re.IGNORECASE)
-    if c1_waves:
-        data['c1_waves'] = [{'wave': w[0], 'first_in': w[1], 'last_out': w[2]} for w in c1_waves]
     splits = re.search(r'(\d+)\s*Split[s]?[\s\-]*(.*?)(?:\n|$)', text, re.IGNORECASE)
     if splits:
         data['splits'] = splits.group(1)
-        vans = splits.group(2).strip()
-        if vans: data['split_vans'] = vans
+        if splits.group(2).strip(): data['split_vans'] = splits.group(2).strip()
     dropped = re.search(r'(\d+)\s*dropped[\s\-]*(.*?)(?:\n|$)', text, re.IGNORECASE)
     if dropped:
         data['dropped'] = dropped.group(1)
-        van = dropped.group(2).strip()
-        if van: data['dropped_vans'] = van
+        if dropped.group(2).strip(): data['dropped_vans'] = dropped.group(2).strip()
     extras = re.search(r'(\d+)\s*extras?', text, re.IGNORECASE)
     if extras: data['extras'] = extras.group(1)
     sweeper = re.search(r'(\d+)\s*sweeper', text, re.IGNORECASE)
@@ -51,6 +40,9 @@ def parse_daily_wash(text):
     if terminations: data['terminations'] = terminations.group(1)
     training = re.search(r'(\d+)\s*Training', text, re.IGNORECASE)
     if training: data['training'] = training.group(1)
+    c1_waves = re.findall(r'Wave (\d+)\s*First van in[:\-\s]*([\d:]+).*?Last van out[:\-\s]*([\d:]+)', text, re.IGNORECASE)
+    if c1_waves:
+        data['c1_waves'] = [{'wave': w[0], 'first_in': w[1], 'last_out': w[2]} for w in c1_waves]
     return data
 
 def parse_evening_wash(text):
@@ -76,8 +68,7 @@ def parse_capacity(text):
     current_week = None
     current_cycle = None
     days = []
-    lines = text.split('\n')
-    for line in lines:
+    for line in text.split('\n'):
         line = line.strip()
         if not line:
             continue
@@ -96,17 +87,9 @@ def parse_capacity(text):
                 days = []
             current_cycle = cycle_match.group(1).strip()
             continue
-        day_match = re.search(
-            r'(sun|mon|tue|wed|thu|fri|sat)\w*[\s\-:]*(\d+)\s*RT[\s\-]*(\d+)\s*ECP[\s\-]*(\d+)\s*DA',
-            line, re.IGNORECASE
-        )
+        day_match = re.search(r'(sun|mon|tue|wed|thu|fri|sat)\w*[\s\-:]*(\d+)\s*RT[\s\-]*(\d+)\s*ECP[\s\-]*(\d+)\s*DA', line, re.IGNORECASE)
         if day_match and current_week:
-            days.append({
-                'day': day_match.group(1).capitalize(),
-                'rt': day_match.group(2),
-                'ecp': day_match.group(3),
-                'das': day_match.group(4)
-            })
+            days.append({'day': day_match.group(1).capitalize(), 'rt': day_match.group(2), 'ecp': day_match.group(3), 'das': day_match.group(4)})
     if current_week and days:
         weeks.append({'week': current_week, 'cycle': current_cycle, 'days': days})
     return weeks
@@ -138,7 +121,7 @@ def slack_events():
         event = data['event']
         if event.get('type') == 'message' and not event.get('bot_id'):
             text = event.get('text', '')
-print(f"Full event: {json.dumps(event)[:500]}")
+            print(f"Message received: {text[:200]}")
             if 'Daily Wash Report' in text:
                 parsed = parse_daily_wash(text)
                 redis_set('daily_wash_latest', parsed)
@@ -182,8 +165,7 @@ print(f"Full event: {json.dumps(event)[:500]}")
 def get_data(key):
     headers = {"Authorization": f"Bearer {UPSTASH_TOKEN}"}
     response = requests.get(f"{UPSTASH_URL}/get/{key}", headers=headers)
-    result = response.json()
-    return jsonify(result)
+    return jsonify(response.json())
 
 @app.route('/', methods=['GET'])
 def home():
