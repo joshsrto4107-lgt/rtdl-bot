@@ -2472,6 +2472,22 @@ async function fetchSlackData() {
       console.log('Capacity loaded:', cap);
     }
 
+    // Fetch fleet data
+    const fleetRes = await fetch(`${BOT_URL}/data/fleet_latest`);
+    const fleetData = await fleetRes.json();
+    if (fleetData.result && typeof fleetData.result === 'object') {
+      state.slackData.fleet = fleetData.result;
+      renderFleetFromSlack(fleetData.result);
+    }
+
+    // Fetch fleet roster from Excel upload
+    const rosterRes = await fetch(`${BOT_URL}/data/fleet_roster`);
+    const rosterData = await rosterRes.json();
+    if (rosterData.result && Array.isArray(rosterData.result)) {
+      state.slackData.fleetRoster = rosterData.result;
+      renderFleetRoster(rosterData.result);
+    }
+
     saveState();
 
   } catch(err) {
@@ -2658,6 +2674,371 @@ function renderDailyWash(dw) {
   }
 
   saveState();
+}
+
+
+// ═══════════════════════════════════════════════════
+// FLEET AUTO-DISPLAY FROM SLACK
+// ═══════════════════════════════════════════════════
+function renderFleetFromSlack(fleet) {
+  if (!fleet) return;
+
+  // Update stat cards
+  const grounded = fleet.grounded ? fleet.grounded.length : 0;
+  const ungrounded = fleet.ungrounded ? fleet.ungrounded.length : 0;
+  const totalMentioned = fleet.vans_mentioned ? fleet.vans_mentioned.length : 0;
+  const active = totalMentioned - grounded;
+
+  document.getElementById('fleet-grounded').textContent = grounded;
+  document.getElementById('fleet-active').textContent = active;
+
+  // Update PAVE tracker
+  const paveTotal = parseInt(fleet.pave_total) || 0;
+  const paveDone = fleet.pave_completed ? fleet.pave_completed.length : 0;
+  const paveRemaining = paveTotal - paveDone;
+  const pavePct = paveTotal > 0 ? Math.round((paveDone / paveTotal) * 100) : 0;
+
+  // Build fleet slack card
+  let fleetCard = document.getElementById('fleet-slack-card');
+  if (!fleetCard) {
+    const fleetSection = document.getElementById('section-fleet');
+    const firstCard = fleetSection.querySelector('.card');
+    if (firstCard) {
+      fleetCard = document.createElement('div');
+      fleetCard.id = 'fleet-slack-card';
+      fleetCard.className = 'card';
+      fleetCard.style.marginBottom = '20px';
+      fleetSection.insertBefore(fleetCard, firstCard);
+    }
+  }
+
+  if (fleetCard) {
+    // Build pie chart using CSS
+    const activeAngle = totalMentioned > 0 ? Math.round((active / totalMentioned) * 360) : 0;
+    const groundedAngle = totalMentioned > 0 ? Math.round((grounded / totalMentioned) * 360) : 0;
+
+    fleetCard.innerHTML = `
+      <div class="card-title">🚐 Fleet Status — Live from Slack <span class="pill green" style="margin-left:8px;"><span class="dot"></span>Auto</span></div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:24px;">
+        
+        <!-- Left: Stats + Pie Chart -->
+        <div>
+          <div style="display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-bottom:20px;">
+            <div style="text-align:center; padding:14px; background:rgba(34,197,94,0.1); border-radius:8px; border:1px solid rgba(34,197,94,0.2);">
+              <div style="font-size:28px; font-weight:800; color:var(--green); font-family:'JetBrains Mono',monospace;">${active}</div>
+              <div style="font-size:10px; color:var(--gray); text-transform:uppercase; letter-spacing:0.8px; margin-top:4px;">Active</div>
+            </div>
+            <div style="text-align:center; padding:14px; background:rgba(239,68,68,0.1); border-radius:8px; border:1px solid rgba(239,68,68,0.2);">
+              <div style="font-size:28px; font-weight:800; color:var(--red); font-family:'JetBrains Mono',monospace;">${grounded}</div>
+              <div style="font-size:10px; color:var(--gray); text-transform:uppercase; letter-spacing:0.8px; margin-top:4px;">Grounded</div>
+            </div>
+            <div style="text-align:center; padding:14px; background:rgba(234,179,8,0.1); border-radius:8px; border:1px solid rgba(234,179,8,0.2);">
+              <div style="font-size:28px; font-weight:800; color:var(--yellow); font-family:'JetBrains Mono',monospace;">${ungrounded}</div>
+              <div style="font-size:10px; color:var(--gray); text-transform:uppercase; letter-spacing:0.8px; margin-top:4px;">Ungrounded Today</div>
+            </div>
+          </div>
+
+          <!-- Pie Chart -->
+          <div style="display:flex; align-items:center; gap:20px; margin-bottom:16px;">
+            <div style="position:relative; width:120px; height:120px; flex-shrink:0;">
+              <canvas id="fleetPieChart" width="120" height="120"></canvas>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:8px;">
+              <div style="display:flex; align-items:center; gap:8px;"><div style="width:12px;height:12px;border-radius:50%;background:var(--green);flex-shrink:0;"></div><span style="font-size:13px;">Active (${active})</span></div>
+              <div style="display:flex; align-items:center; gap:8px;"><div style="width:12px;height:12px;border-radius:50%;background:var(--red);flex-shrink:0;"></div><span style="font-size:13px;">Grounded (${grounded})</span></div>
+              <div style="display:flex; align-items:center; gap:8px;"><div style="width:12px;height:12px;border-radius:50%;background:var(--yellow);flex-shrink:0;"></div><span style="font-size:13px;">Needs Maintenance (0)</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: AFS Cases + PAVE Tracker -->
+        <div>
+          <!-- AFS Cases -->
+          <div style="margin-bottom:16px;">
+            <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.8px; color:var(--gray); margin-bottom:8px;">⚠️ AFS Cases</div>
+            ${fleet.afs_mentions && fleet.afs_mentions.length > 0 
+              ? fleet.afs_mentions.map(v => `<div class="alert yellow" style="margin-bottom:6px;"><div class="alert-icon">📋</div><div><div class="alert-title">${v} — Open AFS Case</div><div class="alert-text">Requires follow-up in Amazon AFS portal.</div></div></div>`).join('')
+              : '<div style="color:var(--gray); font-size:13px;">No open AFS cases today.</div>'
+            }
+          </div>
+
+          <!-- PAVE Tracker -->
+          <div>
+            <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.8px; color:var(--gray); margin-bottom:8px;">🔍 PAVE Inspections</div>
+            ${paveTotal > 0 ? `
+              <div style="margin-bottom:8px;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                  <span style="font-size:13px; color:var(--white);">${paveDone} of ${paveTotal} completed</span>
+                  <span style="font-size:13px; font-weight:700; color:${pavePct === 100 ? 'var(--green)' : pavePct >= 50 ? 'var(--yellow)' : 'var(--red)'};">${pavePct}%</span>
+                </div>
+                <div class="progress-bar">
+                  <div class="progress-fill ${pavePct === 100 ? 'green' : pavePct >= 50 ? 'yellow' : 'red'}" style="width:${pavePct}%"></div>
+                </div>
+              </div>
+              ${fleet.pave_completed && fleet.pave_completed.length > 0 
+                ? `<div style="font-size:11px; color:var(--green); margin-top:6px;">✓ Completed: ${fleet.pave_completed.join(', ')}</div>`
+                : ''
+              }
+              ${paveRemaining > 0 
+                ? `<div style="font-size:11px; color:var(--yellow); margin-top:4px;">⏳ ${paveRemaining} remaining</div>`
+                : '<div style="font-size:11px; color:var(--green); margin-top:4px;">✅ All PAVE inspections complete!</div>'
+              }
+            ` : '<div style="color:var(--gray); font-size:13px;">No PAVE setup yet. Post "PAVE Setup: [number]" in #fleet to begin tracking.</div>'}
+          </div>
+        </div>
+      </div>
+
+      <!-- Vans mentioned today -->
+      <div style="margin-top:16px; padding-top:16px; border-top:1px solid var(--border);">
+        <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.8px; color:var(--gray); margin-bottom:8px;">Vans Active in Today's Report</div>
+        <div style="display:flex; flex-wrap:wrap; gap:8px;">
+          ${fleet.vans_mentioned ? fleet.vans_mentioned.map(v => {
+            const isGrounded = fleet.grounded && fleet.grounded.includes(v);
+            const isUngrounded = fleet.ungrounded && fleet.ungrounded.includes(v);
+            const color = isGrounded ? 'red' : isUngrounded ? 'green' : 'blue';
+            return `<span class="pill ${color}">${v}${isGrounded ? ' 🔴' : isUngrounded ? ' ✓' : ''}</span>`;
+          }).join('') : ''}
+        </div>
+      </div>
+    `;
+
+    // Draw pie chart
+    setTimeout(() => {
+      const canvas = document.getElementById('fleetPieChart');
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      const total = active + grounded;
+      if (total === 0) return;
+
+      const slices = [
+        { value: active, color: '#22C55E' },
+        { value: grounded, color: '#EF4444' },
+        { value: 0, color: '#EAB308' }
+      ];
+
+      let startAngle = -Math.PI / 2;
+      slices.forEach(slice => {
+        if (slice.value === 0) return;
+        const sliceAngle = (slice.value / total) * 2 * Math.PI;
+        ctx.beginPath();
+        ctx.moveTo(60, 60);
+        ctx.arc(60, 60, 55, startAngle, startAngle + sliceAngle);
+        ctx.closePath();
+        ctx.fillStyle = slice.color;
+        ctx.fill();
+        startAngle += sliceAngle;
+      });
+
+      // Center hole for donut effect
+      ctx.beginPath();
+      ctx.arc(60, 60, 30, 0, 2 * Math.PI);
+      ctx.fillStyle = '#1A2E45';
+      ctx.fill();
+
+      // Center text
+      ctx.fillStyle = '#F0F4F8';
+      ctx.font = 'bold 14px JetBrains Mono';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(total, 60, 60);
+    }, 100);
+  }
+}
+
+
+// ═══════════════════════════════════════════════════
+// FLEET ROSTER DISPLAY
+// ═══════════════════════════════════════════════════
+function renderFleetRoster(roster) {
+  if (!roster || roster.length === 0) return;
+
+  const total = roster.length;
+  const grounded = roster.filter(v => v.grounded);
+  const operational = roster.filter(v => !v.grounded);
+  const primeVans = roster.filter(v => v.id.toLowerCase().includes('prime') || v.id.toLowerCase().includes('cdv'));
+  const needsAttention = roster.filter(v => {
+    if (!v.registration_expiry) return false;
+    const expiry = new Date(v.registration_expiry);
+    const now = new Date();
+    const daysLeft = Math.ceil((expiry - now) / (1000*60*60*24));
+    return daysLeft < 30 && daysLeft > 0;
+  });
+  const expired = roster.filter(v => {
+    if (!v.registration_expiry) return false;
+    const expiry = new Date(v.registration_expiry);
+    return expiry < new Date();
+  });
+
+  // Update existing stat cards
+  document.getElementById('fleet-active').textContent = operational.length;
+  document.getElementById('fleet-grounded').textContent = grounded.length;
+  document.getElementById('fleet-total').textContent = total;
+  document.getElementById('vehiclesActive').textContent = `${operational.length}/${total}`;
+
+  // Build roster card
+  let rosterCard = document.getElementById('fleet-roster-card');
+  if (!rosterCard) {
+    const fleetSection = document.getElementById('section-fleet');
+    rosterCard = document.createElement('div');
+    rosterCard.id = 'fleet-roster-card';
+    rosterCard.className = 'card';
+    rosterCard.style.marginBottom = '20px';
+    const uploadCard = fleetSection.querySelector('.card');
+    if (uploadCard) {
+      fleetSection.insertBefore(rosterCard, uploadCard);
+    } else {
+      fleetSection.appendChild(rosterCard);
+    }
+  }
+
+  // Registration expiry warnings
+  const expiryAlerts = [...needsAttention, ...expired].map(v => {
+    const expiry = new Date(v.registration_expiry);
+    const daysLeft = Math.ceil((expiry - new Date()) / (1000*60*60*24));
+    const isExpired = daysLeft < 0;
+    return `<div class="alert ${isExpired ? 'red' : 'yellow'}">
+      <div class="alert-icon">${isExpired ? '🚨' : '⚠️'}</div>
+      <div>
+        <div class="alert-title">${v.id} — Registration ${isExpired ? 'EXPIRED' : `Expires in ${daysLeft} days`}</div>
+        <div class="alert-text">Expiry: ${v.registration_expiry} | Provider: ${v.provider}</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  rosterCard.innerHTML = `
+    <div class="card-title">🚐 Fleet Roster — Live from Amazon AFS <span class="pill green" style="margin-left:8px;"><span class="dot"></span>Auto</span></div>
+    
+    <!-- Summary Stats -->
+    <div style="display:grid; grid-template-columns:repeat(5,1fr); gap:12px; margin-bottom:20px;">
+      <div style="text-align:center; padding:14px; background:rgba(75,172,198,0.1); border-radius:8px; border:1px solid rgba(75,172,198,0.2);">
+        <div style="font-size:28px; font-weight:800; color:var(--wave); font-family:'JetBrains Mono',monospace;">${total}</div>
+        <div style="font-size:10px; color:var(--gray); text-transform:uppercase; letter-spacing:0.8px; margin-top:4px;">Total Fleet</div>
+      </div>
+      <div style="text-align:center; padding:14px; background:rgba(34,197,94,0.1); border-radius:8px; border:1px solid rgba(34,197,94,0.2);">
+        <div style="font-size:28px; font-weight:800; color:var(--green); font-family:'JetBrains Mono',monospace;">${operational.length}</div>
+        <div style="font-size:10px; color:var(--gray); text-transform:uppercase; letter-spacing:0.8px; margin-top:4px;">Operational</div>
+      </div>
+      <div style="text-align:center; padding:14px; background:rgba(239,68,68,0.1); border-radius:8px; border:1px solid rgba(239,68,68,0.2);">
+        <div style="font-size:28px; font-weight:800; color:var(--red); font-family:'JetBrains Mono',monospace;">${grounded.length}</div>
+        <div style="font-size:10px; color:var(--gray); text-transform:uppercase; letter-spacing:0.8px; margin-top:4px;">Grounded</div>
+      </div>
+      <div style="text-align:center; padding:14px; background:rgba(75,172,198,0.1); border-radius:8px; border:1px solid rgba(75,172,198,0.2);">
+        <div style="font-size:28px; font-weight:800; color:var(--wave); font-family:'JetBrains Mono',monospace;">${primeVans.length}</div>
+        <div style="font-size:10px; color:var(--gray); text-transform:uppercase; letter-spacing:0.8px; margin-top:4px;">Prime/CDV Vans</div>
+      </div>
+      <div style="text-align:center; padding:14px; background:${expired.length > 0 ? 'rgba(239,68,68,0.1)' : needsAttention.length > 0 ? 'rgba(234,179,8,0.1)' : 'rgba(34,197,94,0.1)'}; border-radius:8px; border:1px solid ${expired.length > 0 ? 'rgba(239,68,68,0.2)' : needsAttention.length > 0 ? 'rgba(234,179,8,0.2)' : 'rgba(34,197,94,0.2)'};">
+        <div style="font-size:28px; font-weight:800; color:${expired.length > 0 ? 'var(--red)' : needsAttention.length > 0 ? 'var(--yellow)' : 'var(--green)'}; font-family:'JetBrains Mono',monospace;">${expired.length + needsAttention.length}</div>
+        <div style="font-size:10px; color:var(--gray); text-transform:uppercase; letter-spacing:0.8px; margin-top:4px;">Reg. Alerts</div>
+      </div>
+    </div>
+
+    <!-- Pie Chart + Grounded List -->
+    <div style="display:grid; grid-template-columns:200px 1fr; gap:20px; margin-bottom:20px;">
+      <div style="display:flex; flex-direction:column; align-items:center;">
+        <canvas id="fleetRosterPie" width="160" height="160"></canvas>
+        <div style="display:flex; flex-direction:column; gap:6px; margin-top:12px; width:100%;">
+          <div style="display:flex; align-items:center; gap:8px;"><div style="width:10px;height:10px;border-radius:50%;background:var(--green);flex-shrink:0;"></div><span style="font-size:12px;">Operational (${operational.length})</span></div>
+          <div style="display:flex; align-items:center; gap:8px;"><div style="width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0;"></div><span style="font-size:12px;">Grounded (${grounded.length})</span></div>
+        </div>
+      </div>
+
+      <div>
+        ${grounded.length > 0 ? `
+          <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.8px; color:var(--gray); margin-bottom:8px;">🔴 Grounded Vans</div>
+          <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(180px, 1fr)); gap:8px; margin-bottom:16px;">
+            ${grounded.map(v => `
+              <div style="background:rgba(239,68,68,0.1); border:1px solid rgba(239,68,68,0.2); border-radius:8px; padding:10px;">
+                <div style="font-size:14px; font-weight:700; color:var(--red);">${v.id}</div>
+                <div style="font-size:11px; color:var(--gray); margin-top:2px;">${v.type}</div>
+                <div style="font-size:11px; color:var(--gray);">${v.provider}</div>
+              </div>
+            `).join('')}
+          </div>
+        ` : '<div class="alert green"><div class="alert-icon">✅</div><div><div class="alert-title">No Grounded Vans</div><div class="alert-text">All vehicles are operational.</div></div></div>'}
+      </div>
+    </div>
+
+    <!-- Registration Alerts -->
+    ${expiryAlerts ? `
+      <div style="margin-bottom:20px;">
+        <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.8px; color:var(--gray); margin-bottom:8px;">📋 Registration Alerts</div>
+        ${expiryAlerts}
+      </div>
+    ` : ''}
+
+    <!-- Full Fleet Table -->
+    <div>
+      <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.8px; color:var(--gray); margin-bottom:8px;">Full Fleet Roster</div>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Van ID</th>
+            <th>Type</th>
+            <th>Provider</th>
+            <th>Ownership</th>
+            <th>Reg. Expiry</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${roster.map((v, i) => {
+            const expiry = v.registration_expiry ? new Date(v.registration_expiry) : null;
+            const daysLeft = expiry ? Math.ceil((expiry - new Date()) / (1000*60*60*24)) : null;
+            const regColor = !expiry ? 'var(--gray)' : daysLeft < 0 ? 'var(--red)' : daysLeft < 30 ? 'var(--yellow)' : 'var(--green)';
+            return `<tr>
+              <td><strong>${v.id}</strong></td>
+              <td style="color:var(--gray); font-size:12px;">${v.type}</td>
+              <td style="color:var(--gray);">${v.provider}</td>
+              <td style="color:var(--gray); font-size:12px;">${v.ownership}</td>
+              <td style="color:${regColor}; font-family:'JetBrains Mono',monospace; font-size:12px;">${v.registration_expiry || '—'}</td>
+              <td><span class="pill ${v.grounded ? 'red' : 'green'}"><span class="dot"></span>${v.grounded ? 'Grounded' : 'Operational'}</span></td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  // Draw pie chart
+  setTimeout(() => {
+    const canvas = document.getElementById('fleetRosterPie');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const slices = [
+      { value: operational.length, color: '#22C55E' },
+      { value: grounded.length, color: '#EF4444' },
+    ];
+    const total2 = operational.length + grounded.length;
+    let startAngle = -Math.PI / 2;
+    slices.forEach(slice => {
+      if (slice.value === 0) return;
+      const angle = (slice.value / total2) * 2 * Math.PI;
+      ctx.beginPath();
+      ctx.moveTo(80, 80);
+      ctx.arc(80, 80, 72, startAngle, startAngle + angle);
+      ctx.closePath();
+      ctx.fillStyle = slice.color;
+      ctx.fill();
+      startAngle += angle;
+    });
+    // Donut hole
+    ctx.beginPath();
+    ctx.arc(80, 80, 40, 0, 2 * Math.PI);
+    ctx.fillStyle = '#1A2E45';
+    ctx.fill();
+    // Center text
+    ctx.fillStyle = '#F0F4F8';
+    ctx.font = 'bold 18px JetBrains Mono';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(total2, 80, 75);
+    ctx.font = '10px Inter';
+    ctx.fillStyle = '#94A3B8';
+    ctx.fillText('TOTAL', 80, 93);
+  }, 200);
+
+  // Update morning brief vehicles active
+  document.getElementById('vehiclesActive').textContent = `${operational.length}/${total}`;
 }
 
 // ── INIT ──
