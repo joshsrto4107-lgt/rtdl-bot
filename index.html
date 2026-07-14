@@ -2411,7 +2411,8 @@ async function fetchSlackData() {
     const ewRes = await fetch(`${BOT_URL}/data/evening_wash_latest`);
     const ewData = await ewRes.json();
     if (ewData.result) {
-      const ew = JSON.parse(ewData.result);
+      let ew = ewData.result;
+      if (typeof ew === 'string') { try { ew = JSON.parse(ew); } catch(e) {} }
       state.slackData = state.slackData || {};
       state.slackData.eveningWash = ew;
 
@@ -2456,7 +2457,8 @@ async function fetchSlackData() {
     const dwRes = await fetch(`${BOT_URL}/data/daily_wash_latest`);
     const dwData = await dwRes.json();
     if (dwData.result) {
-      const dw = JSON.parse(dwData.result);
+      let dw = dwData.result;
+      if (typeof dw === 'string') { try { dw = JSON.parse(dw); } catch(e) {} }
       state.slackData.dailyWash = dw;
       renderDailyWash(dw);
       console.log('Daily wash loaded:', dw);
@@ -2466,7 +2468,8 @@ async function fetchSlackData() {
     const capRes = await fetch(`${BOT_URL}/data/capacity_latest`);
     const capData = await capRes.json();
     if (capData.result) {
-      const cap = JSON.parse(capData.result);
+      let cap = capData.result;
+      if (typeof cap === 'string') { try { cap = JSON.parse(cap); } catch(e) {} }
       state.slackData.capacity = cap;
       renderCapacityFromSlack(cap);
       console.log('Capacity loaded:', cap);
@@ -2475,17 +2478,27 @@ async function fetchSlackData() {
     // Fetch fleet data
     const fleetRes = await fetch(`${BOT_URL}/data/fleet_latest`);
     const fleetData = await fleetRes.json();
-    if (fleetData.result && typeof fleetData.result === 'object') {
-      state.slackData.fleet = fleetData.result;
-      renderFleetFromSlack(fleetData.result);
+    if (fleetData.result) {
+      let fleetResult = fleetData.result;
+      if (typeof fleetResult === 'string') { try { fleetResult = JSON.parse(fleetResult); } catch(e) {} }
+      if (typeof fleetResult === 'object') {
+        state.slackData.fleet = fleetResult;
+        renderFleetFromSlack(fleetResult);
+      }
     }
 
     // Fetch fleet roster from Excel upload
     const rosterRes = await fetch(`${BOT_URL}/data/fleet_roster`);
     const rosterData = await rosterRes.json();
-    if (rosterData.result && Array.isArray(rosterData.result)) {
-      state.slackData.fleetRoster = rosterData.result;
-      renderFleetRoster(rosterData.result);
+    let rosterResult = rosterData.result;
+    if (rosterResult) {
+      if (typeof rosterResult === 'string') {
+        try { rosterResult = JSON.parse(rosterResult); } catch(e) {}
+      }
+      if (Array.isArray(rosterResult)) {
+        state.slackData.fleetRoster = rosterResult;
+        renderFleetRoster(rosterResult);
+      }
     }
 
     saveState();
