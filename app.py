@@ -48,14 +48,65 @@ def parse_daily_wash(text):
 
 def parse_capacity(text):
     weeks = []
-    week_blocks = re.findall(r'Week (\d+):.*?(\d+/\d+)\s*-\s*(\d+/\d+)\s*\((Cycle \d+)\)(.*?)(?=Week \d+:|$)', text, re.DOTALL)
-    for block in week_blocks:
-        week_num, start, end, cycle, content = block
-        days = []
-        day_matches = re.findall(r'(Sunday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday)\s*-?\s*(\d+)\s*RT\s*-\s*(\d+)\s*ECP\s*-\s*(\d+)\s*DAs?', content)
-        for day in day_matches:
-            days.append({'day': day[0], 'rt': day[1], 'ecp': day[2], 'das': day[3]})
-        weeks.append({'week': week_num, 'start': start, 'end': end, 'cycle': cycle, 'days': days})
+    current_week = None
+    current_cycle = None
+    days = []
+    
+    lines = text.split('\n')
+    
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+            
+        # Match week header - flexible format
+        week_match = re.search(r'week\s*(\d+).*?(\d+[/\-]\d+).*?(\d+[/\-]\d+).*?(cycle\s*\d+)', line, re.IGNORECASE)
+        if week_match:
+            if current_week and days:
+                weeks.append({
+                    'week': current_week,
+                    'cycle': current_cycle,
+                    'days': days
+                })
+                days = []
+            current_week = week_match.group(1)
+            current_cycle = week_match.group(4).strip()
+            continue
+        
+        # Match cycle line separately if not on week line
+        cycle_match = re.search(r'(cycle\s*\d+)', line, re.IGNORECASE)
+        if cycle_match and not week_match:
+            if current_week and days:
+                weeks.append({
+                    'week': current_week,
+                    'cycle': current_cycle,
+                    'days': days
+                })
+                days = []
+            current_cycle = cycle_match.group(1).strip()
+            continue
+        
+        # Match day lines - very flexible
+        day_match = re.search(
+            r'(sun|mon|tue|wed|thu|fri|sat)\w*[\s\-:]*(\d+)\s*RT[\s\-]*(\d+)\s*ECP[\s\-]*(\d+)\s*DA',
+            line, re.IGNORECASE
+        )
+        if day_match and current_week:
+            days.append({
+                'day': day_match.group(1).capitalize(),
+                'rt': day_match.group(2),
+                'ecp': day_match.group(3),
+                'das': day_match.group(4)
+            })
+    
+    # Add last week
+    if current_week and days:
+        weeks.append({
+            'week': current_week,
+            'cycle': current_cycle,
+            'days': days
+        })
+    
     return weeks
 
 @app.route('/slack/events', methods=['POST'])
