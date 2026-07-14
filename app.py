@@ -3,8 +3,8 @@ import re
 import json
 import requests
 from flask import Flask, request, jsonify
-
 from flask_cors import CORS
+
 app = Flask(__name__)
 CORS(app)
 
@@ -15,6 +15,43 @@ def redis_set(key, value):
     headers = {"Authorization": f"Bearer {UPSTASH_TOKEN}"}
     data = json.dumps(value)
     requests.get(f"{UPSTASH_URL}/set/{key}/{requests.utils.quote(data)}", headers=headers)
+
+def parse_daily_wash(text):
+    data = {}
+    total = re.search(r'(\d+)\s*Total Routes', text, re.IGNORECASE)
+    if total: data['total_routes'] = total.group(1)
+    reductions = re.search(r'(\d+)\s*Same day reductions?', text, re.IGNORECASE)
+    if reductions: data['reductions'] = reductions.group(1)
+    c1 = re.search(r'(\d+)\s*Cycle 1', text, re.IGNORECASE)
+    if c1: data['cycle_1'] = c1.group(1)
+    c0 = re.search(r'(\d+)\s*Cycle 0', text, re.IGNORECASE)
+    if c0: data['cycle_0'] = c0.group(1)
+    same_day = re.search(r'(\d+)\s*Same Day Routes', text, re.IGNORECASE)
+    if same_day: data['same_day'] = same_day.group(1)
+    flex = re.search(r'(\d+)\s*FLEX', text, re.IGNORECASE)
+    if flex: data['flex'] = flex.group(1)
+    c1_waves = re.findall(r'Wave (\d+)\s*First van in[:\-\s]*([\d:]+).*?Last van out[:\-\s]*([\d:]+)', text, re.IGNORECASE)
+    if c1_waves:
+        data['c1_waves'] = [{'wave': w[0], 'first_in': w[1], 'last_out': w[2]} for w in c1_waves]
+    splits = re.search(r'(\d+)\s*Split[s]?[\s\-]*(.*?)(?:\n|$)', text, re.IGNORECASE)
+    if splits:
+        data['splits'] = splits.group(1)
+        vans = splits.group(2).strip()
+        if vans: data['split_vans'] = vans
+    dropped = re.search(r'(\d+)\s*dropped[\s\-]*(.*?)(?:\n|$)', text, re.IGNORECASE)
+    if dropped:
+        data['dropped'] = dropped.group(1)
+        van = dropped.group(2).strip()
+        if van: data['dropped_vans'] = van
+    extras = re.search(r'(\d+)\s*extras?', text, re.IGNORECASE)
+    if extras: data['extras'] = extras.group(1)
+    sweeper = re.search(r'(\d+)\s*sweeper', text, re.IGNORECASE)
+    if sweeper: data['sweeper'] = sweeper.group(1)
+    terminations = re.search(r'(\d+)\s*Terminations?', text, re.IGNORECASE)
+    if terminations: data['terminations'] = terminations.group(1)
+    training = re.search(r'(\d+)\s*Training', text, re.IGNORECASE)
+    if training: data['training'] = training.group(1)
+    return data
 
 def parse_evening_wash(text):
     data = {}
@@ -30,20 +67,8 @@ def parse_evening_wash(text):
     if splits: data['splits'] = splits.group(1)
     training = re.search(r'(\d+)\s*Training', text)
     if training: data['training'] = training.group(1)
-    return data
-
-def parse_daily_wash(text):
-    data = {}
-    routes = re.search(r'(\d+)\s*Total Routes', text)
-    if routes: data['total_routes'] = routes.group(1)
-    sp = re.search(r'(\d+)\s*SP', text)
-    if sp: data['sp_routes'] = sp.group(1)
-    c0 = re.search(r'(\d+)\s*Cycle 0', text)
-    if c0: data['cycle_0'] = c0.group(1)
-    splits = re.search(r'(\d+)\s*Split', text)
-    if splits: data['splits'] = splits.group(1)
-    dropped = re.search(r'(\d+)\s*dropped', text)
-    if dropped: data['dropped'] = dropped.group(1)
+    highlights = re.search(r'Highlights?:(.*?)(?:\n\n|\Z)', text, re.DOTALL | re.IGNORECASE)
+    if highlights: data['highlights'] = highlights.group(1).strip()
     return data
 
 def parse_capacity(text):
@@ -51,42 +76,26 @@ def parse_capacity(text):
     current_week = None
     current_cycle = None
     days = []
-    
     lines = text.split('\n')
-    
     for line in lines:
         line = line.strip()
         if not line:
             continue
-            
-        # Match week header - flexible format
-        week_match = re.search(r'week\s*(\d+).*?(\d+[/\-]\d+).*?(\d+[/\-]\d+).*?(cycle\s*\d+)', line, re.IGNORECASE)
+        week_match = re.search(r'week\s*(\d+).*?(cycle\s*\d+)', line, re.IGNORECASE)
         if week_match:
             if current_week and days:
-                weeks.append({
-                    'week': current_week,
-                    'cycle': current_cycle,
-                    'days': days
-                })
+                weeks.append({'week': current_week, 'cycle': current_cycle, 'days': days})
                 days = []
             current_week = week_match.group(1)
-            current_cycle = week_match.group(4).strip()
+            current_cycle = week_match.group(2).strip()
             continue
-        
-        # Match cycle line separately if not on week line
         cycle_match = re.search(r'(cycle\s*\d+)', line, re.IGNORECASE)
         if cycle_match and not week_match:
             if current_week and days:
-                weeks.append({
-                    'week': current_week,
-                    'cycle': current_cycle,
-                    'days': days
-                })
+                weeks.append({'week': current_week, 'cycle': current_cycle, 'days': days})
                 days = []
             current_cycle = cycle_match.group(1).strip()
             continue
-        
-        # Match day lines - very flexible
         day_match = re.search(
             r'(sun|mon|tue|wed|thu|fri|sat)\w*[\s\-:]*(\d+)\s*RT[\s\-]*(\d+)\s*ECP[\s\-]*(\d+)\s*DA',
             line, re.IGNORECASE
@@ -98,16 +107,27 @@ def parse_capacity(text):
                 'ecp': day_match.group(3),
                 'das': day_match.group(4)
             })
-    
-    # Add last week
     if current_week and days:
-        weeks.append({
-            'week': current_week,
-            'cycle': current_cycle,
-            'days': days
-        })
-    
+        weeks.append({'week': current_week, 'cycle': current_cycle, 'days': days})
     return weeks
+
+def parse_fleet_report(text):
+    data = {'raw': text, 'date': text.split('\n')[0]}
+    van_ids = re.findall(r'\b([A-Z]{1,3}\d+)\b', text)
+    data['vans_mentioned'] = list(set(van_ids))
+    grounded = re.findall(r'([A-Z]{1,3}\d+).*?ground', text, re.IGNORECASE)
+    data['grounded'] = list(set(grounded))
+    ungrounded = re.findall(r'([A-Z]{1,3}\d+).*?unground', text, re.IGNORECASE)
+    data['ungrounded'] = list(set(ungrounded))
+    afs = re.findall(r'AFS.*?([A-Z]{1,3}\d+)', text, re.IGNORECASE)
+    data['afs_mentions'] = list(set(afs))
+    pave_setup = re.search(r'PAVE Setup:\s*(\d+)', text, re.IGNORECASE)
+    if pave_setup: data['pave_total'] = pave_setup.group(1)
+    pave_done = re.findall(r'PAVE Complete:\s*([A-Z]{1,3}\d+)', text, re.IGNORECASE)
+    data['pave_completed'] = pave_done
+    repairs = re.findall(r'([A-Z]{1,3}\d+).*?repair', text, re.IGNORECASE)
+    data['repairs'] = list(set(repairs))
+    return data
 
 @app.route('/slack/events', methods=['POST'])
 def slack_events():
@@ -131,43 +151,10 @@ def slack_events():
                 parsed = parse_capacity(text)
                 redis_set('capacity_latest', parsed)
                 print(f"Capacity saved: {parsed}")
-                def parse_fleet_report(text):
-    data = {'raw': text, 'date': text.split('\n')[0]}
-    
-    # Extract van IDs mentioned (format: letter+number like M13, P25, OWN2)
-    van_ids = re.findall(r'\b([A-Z]{1,3}\d+)\b', text)
-    data['vans_mentioned'] = list(set(van_ids))
-    
-    # Grounded vans
-    grounded = re.findall(r'([A-Z]{1,3}\d+).*?ground', text, re.IGNORECASE)
-    data['grounded'] = list(set(grounded))
-    
-    # Ungrounded vans
-    ungrounded = re.findall(r'([A-Z]{1,3}\d+).*?unground', text, re.IGNORECASE)
-    data['ungrounded'] = list(set(ungrounded))
-    
-    # AFS cases
-    afs = re.findall(r'AFS.*?([A-Z]{1,3}\d+|case)', text, re.IGNORECASE)
-    data['afs_mentions'] = list(set(afs))
-    
-    # PAVE setup
-    pave_setup = re.search(r'PAVE Setup:\s*(\d+)', text, re.IGNORECASE)
-    if pave_setup:
-        data['pave_total'] = pave_setup.group(1)
-    
-    # PAVE completions
-    pave_done = re.findall(r'PAVE Complete:\s*([A-Z]{1,3}\d+)', text, re.IGNORECASE)
-    data['pave_completed'] = pave_done
-    
-    # Repairs
-    repairs = re.findall(r'([A-Z]{1,3}\d+).*?repair|repair.*?([A-Z]{1,3}\d+)', text, re.IGNORECASE)
-    data['repairs'] = [r[0] or r[1] for r in repairs if r[0] or r[1]]
-    
-    return data
             elif 'Fleet Report' in text:
-                parsed_fleet = parse_fleet_report(text)
-                redis_set('fleet_latest', parsed_fleet)
-                print(f"Fleet report saved: {parsed_fleet}")
+                parsed = parse_fleet_report(text)
+                redis_set('fleet_latest', parsed)
+                print(f"Fleet saved: {parsed}")
             elif 'Incident Report' in text:
                 redis_set('incident_latest', {'raw': text, 'date': text.split('\n')[0]})
                 print(f"Incident saved")
@@ -190,6 +177,7 @@ def slack_events():
                 redis_set('termination_latest', {'raw': text, 'date': text.split('\n')[0]})
                 print(f"Termination saved")
     return jsonify({'status': 'ok'})
+
 @app.route('/data/<key>', methods=['GET'])
 def get_data(key):
     headers = {"Authorization": f"Bearer {UPSTASH_TOKEN}"}
