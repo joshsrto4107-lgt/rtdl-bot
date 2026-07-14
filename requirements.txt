@@ -3,3 +3,4 @@ flask-cors
 slack-sdk
 gunicorn
 requests
+openpyxl
