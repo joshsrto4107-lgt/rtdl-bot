@@ -12,9 +12,12 @@ UPSTASH_URL = os.environ.get("UPSTASH_REDIS_REST_URL")
 UPSTASH_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN")
 
 def redis_set(key, value):
-    headers = {"Authorization": f"Bearer {UPSTASH_TOKEN}"}
-    data = json.dumps(value)
-    requests.get(f"{UPSTASH_URL}/set/{key}/{requests.utils.quote(data)}", headers=headers)
+    headers = {
+        "Authorization": f"Bearer {UPSTASH_TOKEN}",
+        "Content-Type": "application/json"
+    }
+    data = json.dumps(["SET", key, json.dumps(value)])
+    requests.post(f"{UPSTASH_URL}/pipeline", headers=headers, data=data)
 
 def parse_daily_wash(text):
     data = {}
