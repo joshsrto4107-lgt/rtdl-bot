@@ -172,7 +172,16 @@ def slack_events():
 def get_data(key):
     headers = {"Authorization": f"Bearer {UPSTASH_TOKEN}"}
     response = requests.get(f"{UPSTASH_URL}/get/{key}", headers=headers)
-    return jsonify(response.json())
+    result = response.json()
+    if result.get('result'):
+        try:
+            parsed = json.loads(result['result'])
+            if isinstance(parsed, str):
+                parsed = json.loads(parsed)
+            return jsonify({'result': parsed})
+        except:
+            return jsonify(result)
+    return jsonify(result)
 
 @app.route('/test-save', methods=['GET'])
 def test_save():
