@@ -148,12 +148,40 @@ def handle_file(file_info):
             return
         headers = {"Authorization": f"Bearer {SLACK_BOT_TOKEN}"}
         response = requests.get(file_url, headers=headers)
-        content = response.text
-        if filename.endswith('.csv') or 'vehicle' in filename or 'fleet' in filename or 'van' in filename:
-            fleet = parse_fleet_csv(content)
+
+        if filename.endswith('.xlsx') or filename.endswith('.xls'):
+            import openpyxl
+            import io as io_module
+            wb = openpyxl.load_workbook(io_module.BytesIO(response.content))
+            ws = wb.active
+            headers_row = [str(cell.value).strip() if cell.value else '' for cell in ws[1]]
+            fleet = []
+            for row in ws.iter_rows(min_row=2, values_only=True):
+                row_dict = dict(zip(headers_row, row))
+                van = {
+                    'id': str(row_dict.get('vehicleName', '') or '').strip(),
+                    'status': str(row_dict.get('status', '') or '').strip(),
+                    'operational': str(row_dict.get('operationalStatus', '') or '').strip(),
+                    'type': str(row_dict.get('type', '') or '').strip(),
+                    'ownership': str(row_dict.get('ownershipType', '') or '').strip(),
+                    'provider': str(row_dict.get('vehicleProvider', '') or '').strip(),
+                    'registration_expiry': str(row_dict.get('registrationExpiryDate', '') or '').strip(),
+                    'status_reason': str(row_dict.get('statusReasonMessage', '') or '').strip(),
+                    'grounded': 'ground' in str(row_dict.get('status', '') or '').lower() or 'ground' in str(row_dict.get('operationalStatus', '') or '').lower(),
+                    'branded': 'brand' in str(row_dict.get('ownershipType', '') or '').lower(),
+                }
+                if van['id'] and van['id'] != 'None':
+                    fleet.append(van)
             if fleet:
                 redis_set('fleet_roster', fleet)
                 print(f"Fleet roster saved: {len(fleet)} vans")
+
+        elif filename.endswith('.csv'):
+            fleet = parse_fleet_csv(response.text)
+            if fleet:
+                redis_set('fleet_roster', fleet)
+                print(f"Fleet roster saved: {len(fleet)} vans")
+
     except Exception as e:
         print(f"File handling error: {e}")
 
