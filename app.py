@@ -118,8 +118,7 @@ def slack_events():
         event = data['event']
         if event.get('type') == 'message' and not event.get('bot_id'):
             text = event.get('text', '')
-            channel_name = event.get('channel', '')
-            print(f"Message in channel {channel_name}: {text[:100]}")
+            print(f"Message received: {text[:100]}")
             if 'Total Routes' in text and 'Fleet Report' in text:
                 parsed = parse_evening_wash(text)
                 redis_set('evening_wash_latest', parsed)
@@ -128,12 +127,11 @@ def slack_events():
                 parsed = parse_daily_wash(text)
                 redis_set('daily_wash_latest', parsed)
                 print(f"Daily wash saved: {parsed}")
-           elif ('capacity report' in text.lower() or ('RT' in text and 'ECP' in text and 'DAs' in text and 'Week' in text)):
+            elif 'capacity report' in text.lower() or ('RT' in text and 'ECP' in text and 'DAs' in text and 'Week' in text):
                 parsed = parse_capacity(text)
                 redis_set('capacity_latest', parsed)
                 print(f"Capacity saved: {parsed}")
     return jsonify({'status': 'ok'})
-
 @app.route('/data/<key>', methods=['GET'])
 def get_data(key):
     headers = {"Authorization": f"Bearer {UPSTASH_TOKEN}"}
