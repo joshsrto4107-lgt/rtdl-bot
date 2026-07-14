@@ -12,12 +12,16 @@ UPSTASH_URL = os.environ.get("UPSTASH_REDIS_REST_URL")
 UPSTASH_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN")
 
 def redis_set(key, value):
-    headers = {
-        "Authorization": f"Bearer {UPSTASH_TOKEN}",
-        "Content-Type": "application/json"
-    }
-    data = json.dumps(["SET", key, json.dumps(value)])
-    requests.post(f"{UPSTASH_URL}/pipeline", headers=headers, data=data)
+    try:
+        headers = {
+            "Authorization": f"Bearer {UPSTASH_TOKEN}"
+        }
+        serialized = json.dumps(value)
+        url = f"{UPSTASH_URL}/set/{key}"
+        response = requests.post(url, headers=headers, json=serialized)
+        print(f"Upstash response: {response.status_code} {response.text}")
+    except Exception as e:
+        print(f"Upstash error: {e}")
 
 def parse_daily_wash(text):
     data = {}
