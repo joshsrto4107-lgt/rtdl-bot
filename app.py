@@ -119,18 +119,42 @@ def slack_events():
         if event.get('type') == 'message' and not event.get('bot_id'):
             text = event.get('text', '')
             print(f"Message received: {text[:100]}")
-            if 'Total Routes' in text and 'Fleet Report' in text:
-                parsed = parse_evening_wash(text)
-                redis_set('evening_wash_latest', parsed)
-                print(f"Evening wash saved: {parsed}")
-            elif 'Total Routes' in text:
+            if 'Daily Wash Report' in text:
                 parsed = parse_daily_wash(text)
                 redis_set('daily_wash_latest', parsed)
                 print(f"Daily wash saved: {parsed}")
-            elif 'capacity report' in text.lower() or ('RT' in text and 'ECP' in text and 'DAs' in text and 'Week' in text):
+            elif 'Evening Wash Report' in text:
+                parsed = parse_evening_wash(text)
+                redis_set('evening_wash_latest', parsed)
+                print(f"Evening wash saved: {parsed}")
+            elif 'Capacity Planning Report' in text:
                 parsed = parse_capacity(text)
                 redis_set('capacity_latest', parsed)
                 print(f"Capacity saved: {parsed}")
+            elif 'Fleet Report' in text:
+                redis_set('fleet_latest', {'raw': text, 'date': text.split('\n')[0]})
+                print(f"Fleet report saved")
+            elif 'Incident Report' in text:
+                redis_set('incident_latest', {'raw': text, 'date': text.split('\n')[0]})
+                print(f"Incident saved")
+            elif 'Write-Up Report' in text:
+                redis_set('writeup_latest', {'raw': text, 'date': text.split('\n')[0]})
+                print(f"Write-up saved")
+            elif 'Training Report' in text:
+                redis_set('training_latest', {'raw': text, 'date': text.split('\n')[0]})
+                print(f"Training saved")
+            elif 'Payroll Correction' in text:
+                redis_set('payroll_correction_latest', {'raw': text, 'date': text.split('\n')[0]})
+                print(f"Payroll correction saved")
+            elif 'Expense Report' in text:
+                redis_set('expense_latest', {'raw': text, 'date': text.split('\n')[0]})
+                print(f"Expense saved")
+            elif 'Hiring Update' in text:
+                redis_set('hiring_latest', {'raw': text, 'date': text.split('\n')[0]})
+                print(f"Hiring update saved")
+            elif 'Termination Report' in text:
+                redis_set('termination_latest', {'raw': text, 'date': text.split('\n')[0]})
+                print(f"Termination saved")
     return jsonify({'status': 'ok'})
 @app.route('/data/<key>', methods=['GET'])
 def get_data(key):
