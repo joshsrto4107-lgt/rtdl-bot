@@ -131,9 +131,43 @@ def slack_events():
                 parsed = parse_capacity(text)
                 redis_set('capacity_latest', parsed)
                 print(f"Capacity saved: {parsed}")
+                def parse_fleet_report(text):
+    data = {'raw': text, 'date': text.split('\n')[0]}
+    
+    # Extract van IDs mentioned (format: letter+number like M13, P25, OWN2)
+    van_ids = re.findall(r'\b([A-Z]{1,3}\d+)\b', text)
+    data['vans_mentioned'] = list(set(van_ids))
+    
+    # Grounded vans
+    grounded = re.findall(r'([A-Z]{1,3}\d+).*?ground', text, re.IGNORECASE)
+    data['grounded'] = list(set(grounded))
+    
+    # Ungrounded vans
+    ungrounded = re.findall(r'([A-Z]{1,3}\d+).*?unground', text, re.IGNORECASE)
+    data['ungrounded'] = list(set(ungrounded))
+    
+    # AFS cases
+    afs = re.findall(r'AFS.*?([A-Z]{1,3}\d+|case)', text, re.IGNORECASE)
+    data['afs_mentions'] = list(set(afs))
+    
+    # PAVE setup
+    pave_setup = re.search(r'PAVE Setup:\s*(\d+)', text, re.IGNORECASE)
+    if pave_setup:
+        data['pave_total'] = pave_setup.group(1)
+    
+    # PAVE completions
+    pave_done = re.findall(r'PAVE Complete:\s*([A-Z]{1,3}\d+)', text, re.IGNORECASE)
+    data['pave_completed'] = pave_done
+    
+    # Repairs
+    repairs = re.findall(r'([A-Z]{1,3}\d+).*?repair|repair.*?([A-Z]{1,3}\d+)', text, re.IGNORECASE)
+    data['repairs'] = [r[0] or r[1] for r in repairs if r[0] or r[1]]
+    
+    return data
             elif 'Fleet Report' in text:
-                redis_set('fleet_latest', {'raw': text, 'date': text.split('\n')[0]})
-                print(f"Fleet report saved")
+                parsed_fleet = parse_fleet_report(text)
+                redis_set('fleet_latest', parsed_fleet)
+                print(f"Fleet report saved: {parsed_fleet}")
             elif 'Incident Report' in text:
                 redis_set('incident_latest', {'raw': text, 'date': text.split('\n')[0]})
                 print(f"Incident saved")
