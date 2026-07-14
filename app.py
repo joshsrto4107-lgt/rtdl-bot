@@ -2,6 +2,8 @@ import os
 import re
 import json
 import requests
+import csv
+import io
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
@@ -10,18 +12,37 @@ CORS(app)
 
 UPSTASH_URL = os.environ.get("UPSTASH_REDIS_REST_URL")
 UPSTASH_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN")
+SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN")
 
 def redis_set(key, value):
     try:
-        headers = {
-            "Authorization": f"Bearer {UPSTASH_TOKEN}"
-        }
+        headers = {"Authorization": f"Bearer {UPSTASH_TOKEN}"}
         serialized = json.dumps(value)
         url = f"{UPSTASH_URL}/set/{key}"
         response = requests.post(url, headers=headers, json=serialized)
         print(f"Upstash response: {response.status_code} {response.text}")
     except Exception as e:
         print(f"Upstash error: {e}")
+
+def parse_fleet_csv(content):
+    fleet = []
+    reader = csv.DictReader(io.StringIO(content))
+    for row in reader:
+        van = {
+            'id': row.get('vehicleName', '').strip(),
+            'status': row.get('status', '').strip(),
+            'operational': row.get('operationalStatus', '').strip(),
+            'type': row.get('type', '').strip(),
+            'ownership': row.get('ownershipType', '').strip(),
+            'provider': row.get('vehicleProvider', '').strip(),
+            'registration_expiry': row.get('registrationExpiryDate', '').strip(),
+            'status_reason': row.get('statusReasonMessage', '').strip(),
+            'grounded': 'ground' in row.get('status', '').lower() or 'ground' in row.get('operationalStatus', '').lower(),
+            'branded': 'brand' in row.get('ownershipType', '').lower(),
+        }
+        if van['id']:
+            fleet.append(van)
+    return fleet
 
 def parse_daily_wash(text):
     data = {}
@@ -119,6 +140,23 @@ def parse_fleet_report(text):
     data['repairs'] = list(set(repairs))
     return data
 
+def handle_file(file_info):
+    try:
+        file_url = file_info.get('url_private_download') or file_info.get('url_private')
+        filename = file_info.get('name', '').lower()
+        if not file_url:
+            return
+        headers = {"Authorization": f"Bearer {SLACK_BOT_TOKEN}"}
+        response = requests.get(file_url, headers=headers)
+        content = response.text
+        if filename.endswith('.csv') or 'vehicle' in filename or 'fleet' in filename or 'van' in filename:
+            fleet = parse_fleet_csv(content)
+            if fleet:
+                redis_set('fleet_roster', fleet)
+                print(f"Fleet roster saved: {len(fleet)} vans")
+    except Exception as e:
+        print(f"File handling error: {e}")
+
 @app.route('/slack/events', methods=['POST'])
 def slack_events():
     data = request.json
@@ -166,6 +204,10 @@ def slack_events():
             elif 'Termination Report' in text:
                 redis_set('termination_latest', {'raw': text, 'date': text.split('\n')[0]})
                 print(f"Termination saved")
+        if event.get('type') == 'message' and event.get('files'):
+            for file_info in event.get('files', []):
+                print(f"File received: {file_info.get('name')}")
+                handle_file(file_info)
     return jsonify({'status': 'ok'})
 
 @app.route('/data/<key>', methods=['GET'])
