@@ -170,6 +170,11 @@ def get_data(key):
     response = requests.get(f"{UPSTASH_URL}/get/{key}", headers=headers)
     return jsonify(response.json())
 
+@app.route('/test-save', methods=['GET'])
+def test_save():
+    redis_set('test_key', {'message': 'hello', 'status': 'working'})
+    return 'Saved test data to Upstash'
+
 @app.route('/', methods=['GET'])
 def home():
     return 'Riptide Command Bot is running.'
