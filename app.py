@@ -138,7 +138,7 @@ def slack_events():
         event = data['event']
         if event.get('type') == 'message' and not event.get('bot_id'):
             text = event.get('text', '')
-            print(f"Message received: {text[:100]}")
+print(f"Full event: {json.dumps(event)[:500]}")
             if 'Daily Wash Report' in text:
                 parsed = parse_daily_wash(text)
                 redis_set('daily_wash_latest', parsed)
