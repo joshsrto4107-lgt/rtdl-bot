@@ -20,29 +20,9 @@ def redis_set(key, value):
         serialized = json.dumps(value)
         url = f"{UPSTASH_URL}/set/{key}"
         response = requests.post(url, headers=headers, json=serialized)
-        print(f"Upstash response: {response.status_code} {response.text}")
+        print(f"Upstash response: {response.status_code} {response.text[:100]}")
     except Exception as e:
         print(f"Upstash error: {e}")
-
-def parse_fleet_csv(content):
-    fleet = []
-    reader = csv.DictReader(io.StringIO(content))
-    for row in reader:
-        van = {
-            'id': row.get('vehicleName', '').strip(),
-            'status': row.get('status', '').strip(),
-            'operational': row.get('operationalStatus', '').strip(),
-            'type': row.get('type', '').strip(),
-            'ownership': row.get('ownershipType', '').strip(),
-            'provider': row.get('vehicleProvider', '').strip(),
-            'registration_expiry': row.get('registrationExpiryDate', '').strip(),
-            'status_reason': row.get('statusReasonMessage', '').strip(),
-            'grounded': 'ground' in row.get('status', '').lower() or 'ground' in row.get('operationalStatus', '').lower(),
-            'branded': 'brand' in row.get('ownershipType', '').lower(),
-        }
-        if van['id']:
-            fleet.append(van)
-    return fleet
 
 def parse_daily_wash(text):
     data = {}
@@ -140,6 +120,90 @@ def parse_fleet_report(text):
     data['repairs'] = list(set(repairs))
     return data
 
+def parse_fleet_csv(content):
+    fleet = []
+    reader = csv.DictReader(io.StringIO(content))
+    for row in reader:
+        van = {
+            'id': row.get('vehicleName', '').strip(),
+            'status': row.get('status', '').strip(),
+            'operational': row.get('operationalStatus', '').strip(),
+            'type': row.get('type', '').strip(),
+            'ownership': row.get('ownershipType', '').strip(),
+            'provider': row.get('vehicleProvider', '').strip(),
+            'registration_expiry': row.get('registrationExpiryDate', '').strip(),
+            'status_reason': row.get('statusReasonMessage', '').strip(),
+            'grounded': 'ground' in row.get('status', '').lower() or 'ground' in row.get('operationalStatus', '').lower(),
+            'branded': 'brand' in row.get('ownershipType', '').lower(),
+        }
+        if van['id']:
+            fleet.append(van)
+    return fleet
+
+def parse_driver_rating_report(content_bytes):
+    import openpyxl
+    wb = openpyxl.load_workbook(io.BytesIO(content_bytes), data_only=True)
+    ws = wb.active
+    headers = [cell.value for cell in ws[1]]
+    drivers = []
+
+    def safe_float(val):
+        try:
+            if val is None or val == 'N/A': return None
+            return float(val)
+        except: return None
+
+    for row in ws.iter_rows(min_row=2, values_only=True):
+        if not row[0]:
+            continue
+        d = dict(zip(headers, row))
+        driver = {
+            'name': str(d.get('Driver Name', '')).strip(),
+            'transporter_id': str(d.get('Transporter Id', '')).strip(),
+            'total_rating': safe_float(d.get('Total Rating')),
+            'seatbelt_off': safe_float(d.get('Seatbelt Off Rate')),
+            'speeding': safe_float(d.get('Speeding Event Rate')),
+            'distractions': safe_float(d.get('Distractions Rate')),
+            'following_distance': safe_float(d.get('Following Distance Rate')),
+            'sign_signal': safe_float(d.get('Sign/Signal Violations Rate')),
+            'cdf_dpmo': safe_float(d.get('Customer Delivery Feedback DPMO')),
+            'dc_dpmo': safe_float(d.get('Delivery Completion DPMO')),
+            'pod': safe_float(d.get('Photo-On-Delivery')),
+            'dsb': safe_float(d.get('DSB Count')),
+            'rescue_completed': safe_float(d.get('Rescue Completed')),
+            'rescue_requested': safe_float(d.get('Rescue Requested')),
+            'callouts': safe_float(d.get('Callouts')),
+            'suspensions': safe_float(d.get('Suspensions')),
+            'writeups': safe_float(d.get('Write-ups')),
+            'damages': safe_float(d.get('Damages')),
+            'delivery_success': safe_float(d.get('Delivery Success Behaviors')),
+        }
+        drivers.append(driver)
+
+    drivers.sort(key=lambda x: x['total_rating'] if x['total_rating'] is not None else 0, reverse=True)
+    for i, d in enumerate(drivers):
+        d['rank'] = i + 1
+
+    top_rescuers = sorted(
+        [d for d in drivers if d['rescue_completed'] and d['rescue_completed'] > 0],
+        key=lambda x: x['rescue_completed'], reverse=True
+    )[:2]
+
+    flagged = [d for d in drivers if
+        (d['writeups'] and d['writeups'] > 0) or
+        (d['callouts'] and d['callouts'] > 0) or
+        (d['damages'] and d['damages'] > 0)
+    ]
+
+    return {
+        'drivers': drivers,
+        'total_drivers': len(drivers),
+        'top_6': drivers[:6],
+        'bottom_5': drivers[-5:],
+        'top_rescuers': top_rescuers,
+        'flagged': flagged
+    }
+
 def handle_file(file_info):
     try:
         file_url = file_info.get('url_private_download') or file_info.get('url_private')
@@ -149,10 +213,16 @@ def handle_file(file_info):
         headers = {"Authorization": f"Bearer {SLACK_BOT_TOKEN}"}
         response = requests.get(file_url, headers=headers)
 
-        if filename.endswith('.xlsx') or filename.endswith('.xls'):
+        # LMDmax Driver Rating Report
+        if 'driver' in filename and ('rating' in filename or 'report' in filename):
+            data = parse_driver_rating_report(response.content)
+            redis_set('driver_ratings_latest', data)
+            print(f"Driver ratings saved: {data['total_drivers']} drivers")
+
+        # Fleet roster from Amazon AFS
+        elif filename.endswith('.xlsx') and ('vehicle' in filename or 'fleet' in filename or 'van' in filename):
             import openpyxl
-            import io as io_module
-            wb = openpyxl.load_workbook(io_module.BytesIO(response.content))
+            wb = openpyxl.load_workbook(io.BytesIO(response.content))
             ws = wb.active
             headers_row = [str(cell.value).strip() if cell.value else '' for cell in ws[1]]
             fleet = []
