@@ -24,6 +24,16 @@ def redis_set(key, value):
     except Exception as e:
         print(f"Upstash error: {e}")
 
+def redis_get(key):
+    try:
+        headers = {"Authorization": f"Bearer {UPSTASH_TOKEN}"}
+        res = requests.get(f"{UPSTASH_URL}/get/{key}", headers=headers)
+        result = res.json().get('result')
+        if result:
+            return json.loads(result) if isinstance(result, str) else result
+    except: pass
+    return None
+
 def parse_daily_wash(text):
     data = {}
     total = re.search(r'(\d+)\s*Total Routes', text, re.IGNORECASE)
@@ -120,6 +130,50 @@ def parse_fleet_report(text):
     data['repairs'] = list(set(repairs))
     return data
 
+def parse_incident_report(text):
+    data = {'raw': text, 'date': text.split('\n')[0], 'status': 'Open', 'photos': []}
+    driver = re.search(r'Driver:\s*(.+)', text, re.IGNORECASE)
+    if driver: data['driver'] = driver.group(1).strip()
+    incident_type = re.search(r'Type:\s*(.+)', text, re.IGNORECASE)
+    if incident_type: data['type'] = incident_type.group(1).strip()
+    date_time = re.search(r'Date/Time:\s*(.+)', text, re.IGNORECASE)
+    if date_time: data['incident_datetime'] = date_time.group(1).strip()
+    location = re.search(r'Location:\s*(.+)', text, re.IGNORECASE)
+    if location: data['location'] = location.group(1).strip()
+    crs = re.search(r'CRS Case #:\s*(.+)', text, re.IGNORECASE)
+    if crs: data['crs_case'] = crs.group(1).strip()
+    lmet_num = re.search(r'LMET #:\s*(.+)', text, re.IGNORECASE)
+    if lmet_num: data['lmet_number'] = lmet_num.group(1).strip()
+    description = re.search(r'Description:\s*(.+?)(?=Statement:|LMET|Law Enforcement|Photos|$)', text, re.IGNORECASE | re.DOTALL)
+    if description: data['description'] = description.group(1).strip()
+    statement = re.search(r'Statement:\s*(.+?)(?=LMET|Law Enforcement|Photos|$)', text, re.IGNORECASE | re.DOTALL)
+    if statement: data['statement'] = statement.group(1).strip()
+    lmet = re.search(r'LMET Called:\s*(.+)', text, re.IGNORECASE)
+    if lmet: data['lmet_called'] = lmet.group(1).strip()
+    law = re.search(r'Law Enforcement:\s*(.+)', text, re.IGNORECASE)
+    if law: data['law_enforcement'] = law.group(1).strip()
+    photos_field = re.search(r'Photos:\s*(.+)', text, re.IGNORECASE)
+    if photos_field: data['photos_noted'] = photos_field.group(1).strip()
+    return data
+
+def parse_writeup(text):
+    data = {'raw': text, 'date': text.split('\n')[0]}
+    employee = re.search(r'Employee:\s*(.+)', text, re.IGNORECASE)
+    if employee: data['employee'] = employee.group(1).strip()
+    violation = re.search(r'Violation:\s*(.+)', text, re.IGNORECASE)
+    if violation: data['violation'] = violation.group(1).strip()
+    step = re.search(r'Step:\s*(.+)', text, re.IGNORECASE)
+    if step: data['step'] = step.group(1).strip()
+    sop = re.search(r'SOP:\s*(.+)', text, re.IGNORECASE)
+    if sop: data['sop'] = sop.group(1).strip()
+    manager = re.search(r'Manager:\s*(.+)', text, re.IGNORECASE)
+    if manager: data['manager'] = manager.group(1).strip()
+    description = re.search(r'Description:\s*(.+?)(?=Manager:|Acknowledged|$)', text, re.IGNORECASE | re.DOTALL)
+    if description: data['description'] = description.group(1).strip()
+    acknowledged = re.search(r'Acknowledged:\s*(.+)', text, re.IGNORECASE)
+    if acknowledged: data['acknowledged'] = acknowledged.group(1).strip()
+    return data
+
 def parse_fleet_csv(content):
     fleet = []
     reader = csv.DictReader(io.StringIO(content))
@@ -213,6 +267,20 @@ def handle_file(file_info):
         headers = {"Authorization": f"Bearer {SLACK_BOT_TOKEN}"}
         response = requests.get(file_url, headers=headers)
 
+        # Save photos from incident reports
+        if file_info.get('mimetype', '').startswith('image/'):
+            photo_data = {
+                'url': file_info.get('permalink', ''),
+                'url_private': file_info.get('url_private', ''),
+                'name': file_info.get('name', ''),
+                'timestamp': file_info.get('timestamp', '')
+            }
+            existing_photos = redis_get('incident_photos_latest') or []
+            existing_photos.append(photo_data)
+            redis_set('incident_photos_latest', existing_photos)
+            print(f"Photo saved: {photo_data['name']}")
+            return
+
         # LMDmax Driver Rating Report
         if 'driver' in filename and ('rating' in filename or 'report' in filename):
             data = parse_driver_rating_report(response.content)
@@ -282,25 +350,37 @@ def slack_events():
                 redis_set('fleet_latest', parsed)
                 print(f"Fleet saved: {parsed}")
             elif 'Incident Report' in text:
-                redis_set('incident_latest', {'raw': text, 'date': text.split('\n')[0]})
-                print(f"Incident saved")
+                parsed = parse_incident_report(text)
+                existing = redis_get('incidents_all') or []
+                existing.append(parsed)
+                redis_set('incidents_all', existing)
+                print(f"Incident saved: {parsed.get('crs_case', 'No case #')}")
             elif 'Write-Up Report' in text:
-                redis_set('writeup_latest', {'raw': text, 'date': text.split('\n')[0]})
-                print(f"Write-up saved")
+                parsed = parse_writeup(text)
+                existing = redis_get('writeups_all') or []
+                existing.append(parsed)
+                redis_set('writeups_all', existing)
+                print(f"Write-up saved: {parsed.get('employee', 'Unknown')}")
             elif 'Training Report' in text:
                 redis_set('training_latest', {'raw': text, 'date': text.split('\n')[0]})
                 print(f"Training saved")
             elif 'Payroll Correction' in text:
-                redis_set('payroll_correction_latest', {'raw': text, 'date': text.split('\n')[0]})
+                existing = redis_get('payroll_corrections_all') or []
+                existing.append({'raw': text, 'date': text.split('\n')[0]})
+                redis_set('payroll_corrections_all', existing)
                 print(f"Payroll correction saved")
             elif 'Expense Report' in text:
-                redis_set('expense_latest', {'raw': text, 'date': text.split('\n')[0]})
+                existing = redis_get('expenses_all') or []
+                existing.append({'raw': text, 'date': text.split('\n')[0]})
+                redis_set('expenses_all', existing)
                 print(f"Expense saved")
             elif 'Hiring Update' in text:
                 redis_set('hiring_latest', {'raw': text, 'date': text.split('\n')[0]})
                 print(f"Hiring update saved")
             elif 'Termination Report' in text:
-                redis_set('termination_latest', {'raw': text, 'date': text.split('\n')[0]})
+                existing = redis_get('terminations_all') or []
+                existing.append({'raw': text, 'date': text.split('\n')[0]})
+                redis_set('terminations_all', existing)
                 print(f"Termination saved")
         if event.get('type') == 'message' and event.get('files'):
             for file_info in event.get('files', []):
