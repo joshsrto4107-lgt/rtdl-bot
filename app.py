@@ -132,30 +132,61 @@ def parse_fleet_report(text):
 
 def parse_incident_report(text):
     data = {'raw': text, 'date': text.split('\n')[0], 'status': 'Open', 'photos': []}
-    driver = re.search(r'Driver:\s*(.+)', text, re.IGNORECASE)
-    if driver: data['driver'] = driver.group(1).strip()
-    incident_type = re.search(r'Type:\s*(.+)', text, re.IGNORECASE)
-    if incident_type: data['type'] = incident_type.group(1).strip()
-    date_time = re.search(r'Date/Time:\s*(.+)', text, re.IGNORECASE)
-    if date_time: data['incident_datetime'] = date_time.group(1).strip()
-    location = re.search(r'Location:\s*(.+)', text, re.IGNORECASE)
-    if location: data['location'] = location.group(1).strip()
-    crs = re.search(r'CRS Case #:\s*(.+)', text, re.IGNORECASE)
-    if crs: data['crs_case'] = crs.group(1).strip()
-    lmet_num = re.search(r'LMET #:\s*(.+)', text, re.IGNORECASE)
-    if lmet_num: data['lmet_number'] = lmet_num.group(1).strip()
-    description = re.search(r'Description:\s*(.+?)(?=Statement:|LMET|Law Enforcement|Photos|$)', text, re.IGNORECASE | re.DOTALL)
-    if description: data['description'] = description.group(1).strip()
-    statement = re.search(r'Statement:\s*(.+?)(?=LMET|Law Enforcement|Photos|$)', text, re.IGNORECASE | re.DOTALL)
-    if statement: data['statement'] = statement.group(1).strip()
-    lmet = re.search(r'LMET Called:\s*(.+)', text, re.IGNORECASE)
-    if lmet: data['lmet_called'] = lmet.group(1).strip()
-    law = re.search(r'Law Enforcement:\s*(.+)', text, re.IGNORECASE)
-    if law: data['law_enforcement'] = law.group(1).strip()
-    photos_field = re.search(r'Photos:\s*(.+)', text, re.IGNORECASE)
-    if photos_field: data['photos_noted'] = photos_field.group(1).strip()
+    
+    fields = [
+        'Driver', 'Type', 'Date/Time', 'Location', 'CRS Case #',
+        'LMET #', 'Description', 'Statement', 'LMET Called',
+        'Law Enforcement', 'Photos'
+    ]
+    
+    # Build pattern that stops at next field name
+    for i, field in enumerate(fields):
+        next_fields = fields[i+1:] if i+1 < len(fields) else []
+        stop = '|'.join([re.escape(f + ':') for f in next_fields]) if next_fields else '$'
+        pattern = re.escape(field) + r':\s*(.+?)(?=' + stop + r'|\Z)'
+        match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
+        if match:
+            value = match.group(1).strip()
+            key = field.lower().replace('/', '_').replace(' ', '_').replace('#', 'number')
+            data[key] = value
+    
+    # Clean up key names
+    if 'crs_case_number' in data: data['crs_case'] = data.pop('crs_case_number')
+    if 'lmet_number' in data: data['lmet_number'] = data['lmet_number']
+    if 'date_time' in data: data['incident_datetime'] = data.pop('date_time')
+    if 'lmet_called' in data: data['lmet_called'] = data['lmet_called']
+    if 'law_enforcement' in data: data['law_enforcement'] = data['law_enforcement']
+    if 'photos' not in data: data['photos'] = []
+    
+    return datadef parse_incident_report(text):
+    data = {'raw': text, 'date': text.split('\n')[0], 'status': 'Open', 'photos': []}
+    
+    fields = [
+        'Driver', 'Type', 'Date/Time', 'Location', 'CRS Case #',
+        'LMET #', 'Description', 'Statement', 'LMET Called',
+        'Law Enforcement', 'Photos'
+    ]
+    
+    # Build pattern that stops at next field name
+    for i, field in enumerate(fields):
+        next_fields = fields[i+1:] if i+1 < len(fields) else []
+        stop = '|'.join([re.escape(f + ':') for f in next_fields]) if next_fields else '$'
+        pattern = re.escape(field) + r':\s*(.+?)(?=' + stop + r'|\Z)'
+        match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
+        if match:
+            value = match.group(1).strip()
+            key = field.lower().replace('/', '_').replace(' ', '_').replace('#', 'number')
+            data[key] = value
+    
+    # Clean up key names
+    if 'crs_case_number' in data: data['crs_case'] = data.pop('crs_case_number')
+    if 'lmet_number' in data: data['lmet_number'] = data['lmet_number']
+    if 'date_time' in data: data['incident_datetime'] = data.pop('date_time')
+    if 'lmet_called' in data: data['lmet_called'] = data['lmet_called']
+    if 'law_enforcement' in data: data['law_enforcement'] = data['law_enforcement']
+    if 'photos' not in data: data['photos'] = []
+    
     return data
-
 def parse_writeup(text):
     data = {'raw': text, 'date': text.split('\n')[0]}
     employee = re.search(r'Employee:\s*(.+)', text, re.IGNORECASE)
