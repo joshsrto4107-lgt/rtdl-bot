@@ -158,7 +158,9 @@ def parse_incident_report(text):
     if 'law_enforcement' in data: data['law_enforcement'] = data['law_enforcement']
     if 'photos' not in data: data['photos'] = []
     
-    return datadef parse_incident_report(text):
+    return data
+    
+def parse_incident_report(text):
     data = {'raw': text, 'date': text.split('\n')[0], 'status': 'Open', 'photos': []}
     
     fields = [
