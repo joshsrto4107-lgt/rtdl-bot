@@ -187,6 +187,7 @@ def parse_incident_report(text):
     if 'photos' not in data: data['photos'] = []
     
     return data
+    
 def parse_writeup(text):
     data = {'raw': text, 'date': text.split('\n')[0]}
     employee = re.search(r'Employee:\s*(.+)', text, re.IGNORECASE)
