@@ -31,7 +31,8 @@ def redis_get(key):
         result = res.json().get('result')
         if result:
             return json.loads(result) if isinstance(result, str) else result
-    except: pass
+    except:
+        pass
     return None
 
 def parse_daily_wash(text):
@@ -132,80 +133,60 @@ def parse_fleet_report(text):
 
 def parse_incident_report(text):
     data = {'raw': text, 'date': text.split('\n')[0], 'status': 'Open', 'photos': []}
-    
-    fields = [
-        'Driver', 'Type', 'Date/Time', 'Location', 'CRS Case #',
-        'LMET #', 'Description', 'Statement', 'LMET Called',
-        'Law Enforcement', 'Photos'
-    ]
-    
-    # Build pattern that stops at next field name
-    for i, field in enumerate(fields):
-        next_fields = fields[i+1:] if i+1 < len(fields) else []
-        stop = '|'.join([re.escape(f + ':') for f in next_fields]) if next_fields else '$'
-        pattern = re.escape(field) + r':\s*(.+?)(?=' + stop + r'|\Z)'
-        match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
-        if match:
-            value = match.group(1).strip()
-            key = field.lower().replace('/', '_').replace(' ', '_').replace('#', 'number')
-            data[key] = value
-    
-    # Clean up key names
-    if 'crs_case_number' in data: data['crs_case'] = data.pop('crs_case_number')
-    if 'lmet_number' in data: data['lmet_number'] = data['lmet_number']
-    if 'date_time' in data: data['incident_datetime'] = data.pop('date_time')
-    if 'lmet_called' in data: data['lmet_called'] = data['lmet_called']
-    if 'law_enforcement' in data: data['law_enforcement'] = data['law_enforcement']
-    if 'photos' not in data: data['photos'] = []
-    
+    normalized = text
+    field_labels = ['Driver:', 'Type:', 'Date/Time:', 'Location:', 'CRS Case #:',
+                    'LMET #:', 'Description:', 'Statement:', 'LMET Called:',
+                    'Law Enforcement:', 'Photos:']
+    for label in field_labels:
+        normalized = normalized.replace(label, '\n' + label)
+    lines = [l.strip() for l in normalized.split('\n') if l.strip()]
+    for line in lines:
+        if line.startswith('Driver:'):
+            data['driver'] = line.replace('Driver:', '').strip()
+        elif line.startswith('Type:'):
+            data['type'] = line.replace('Type:', '').strip()
+        elif line.startswith('Date/Time:'):
+            data['incident_datetime'] = line.replace('Date/Time:', '').strip()
+        elif line.startswith('Location:'):
+            data['location'] = line.replace('Location:', '').strip()
+        elif line.startswith('CRS Case #:'):
+            data['crs_case'] = line.replace('CRS Case #:', '').strip()
+        elif line.startswith('LMET #:'):
+            data['lmet_number'] = line.replace('LMET #:', '').strip()
+        elif line.startswith('Description:'):
+            data['description'] = line.replace('Description:', '').strip()
+        elif line.startswith('Statement:'):
+            data['statement'] = line.replace('Statement:', '').strip()
+        elif line.startswith('LMET Called:'):
+            data['lmet_called'] = line.replace('LMET Called:', '').strip()
+        elif line.startswith('Law Enforcement:'):
+            data['law_enforcement'] = line.replace('Law Enforcement:', '').strip()
+        elif line.startswith('Photos:'):
+            data['photos_noted'] = line.replace('Photos:', '').strip()
     return data
-    
-def parse_incident_report(text):
-    data = {'raw': text, 'date': text.split('\n')[0], 'status': 'Open', 'photos': []}
-    
-    fields = [
-        'Driver', 'Type', 'Date/Time', 'Location', 'CRS Case #',
-        'LMET #', 'Description', 'Statement', 'LMET Called',
-        'Law Enforcement', 'Photos'
-    ]
-    
-    # Build pattern that stops at next field name
-    for i, field in enumerate(fields):
-        next_fields = fields[i+1:] if i+1 < len(fields) else []
-        stop = '|'.join([re.escape(f + ':') for f in next_fields]) if next_fields else '$'
-        pattern = re.escape(field) + r':\s*(.+?)(?=' + stop + r'|\Z)'
-        match = re.search(pattern, text, re.IGNORECASE | re.DOTALL)
-        if match:
-            value = match.group(1).strip()
-            key = field.lower().replace('/', '_').replace(' ', '_').replace('#', 'number')
-            data[key] = value
-    
-    # Clean up key names
-    if 'crs_case_number' in data: data['crs_case'] = data.pop('crs_case_number')
-    if 'lmet_number' in data: data['lmet_number'] = data['lmet_number']
-    if 'date_time' in data: data['incident_datetime'] = data.pop('date_time')
-    if 'lmet_called' in data: data['lmet_called'] = data['lmet_called']
-    if 'law_enforcement' in data: data['law_enforcement'] = data['law_enforcement']
-    if 'photos' not in data: data['photos'] = []
-    
-    return data
-    
+
 def parse_writeup(text):
     data = {'raw': text, 'date': text.split('\n')[0]}
-    employee = re.search(r'Employee:\s*(.+)', text, re.IGNORECASE)
-    if employee: data['employee'] = employee.group(1).strip()
-    violation = re.search(r'Violation:\s*(.+)', text, re.IGNORECASE)
-    if violation: data['violation'] = violation.group(1).strip()
-    step = re.search(r'Step:\s*(.+)', text, re.IGNORECASE)
-    if step: data['step'] = step.group(1).strip()
-    sop = re.search(r'SOP:\s*(.+)', text, re.IGNORECASE)
-    if sop: data['sop'] = sop.group(1).strip()
-    manager = re.search(r'Manager:\s*(.+)', text, re.IGNORECASE)
-    if manager: data['manager'] = manager.group(1).strip()
-    description = re.search(r'Description:\s*(.+?)(?=Manager:|Acknowledged|$)', text, re.IGNORECASE | re.DOTALL)
-    if description: data['description'] = description.group(1).strip()
-    acknowledged = re.search(r'Acknowledged:\s*(.+)', text, re.IGNORECASE)
-    if acknowledged: data['acknowledged'] = acknowledged.group(1).strip()
+    normalized = text
+    field_labels = ['Employee:', 'Violation:', 'Step:', 'SOP:', 'Manager:', 'Description:', 'Acknowledged:']
+    for label in field_labels:
+        normalized = normalized.replace(label, '\n' + label)
+    lines = [l.strip() for l in normalized.split('\n') if l.strip()]
+    for line in lines:
+        if line.startswith('Employee:'):
+            data['employee'] = line.replace('Employee:', '').strip()
+        elif line.startswith('Violation:'):
+            data['violation'] = line.replace('Violation:', '').strip()
+        elif line.startswith('Step:'):
+            data['step'] = line.replace('Step:', '').strip()
+        elif line.startswith('SOP:'):
+            data['sop'] = line.replace('SOP:', '').strip()
+        elif line.startswith('Manager:'):
+            data['manager'] = line.replace('Manager:', '').strip()
+        elif line.startswith('Description:'):
+            data['description'] = line.replace('Description:', '').strip()
+        elif line.startswith('Acknowledged:'):
+            data['acknowledged'] = line.replace('Acknowledged:', '').strip()
     return data
 
 def parse_fleet_csv(content):
@@ -301,7 +282,6 @@ def handle_file(file_info):
         headers = {"Authorization": f"Bearer {SLACK_BOT_TOKEN}"}
         response = requests.get(file_url, headers=headers)
 
-        # Save photos from incident reports
         if file_info.get('mimetype', '').startswith('image/'):
             photo_data = {
                 'url': file_info.get('permalink', ''),
@@ -315,13 +295,11 @@ def handle_file(file_info):
             print(f"Photo saved: {photo_data['name']}")
             return
 
-        # LMDmax Driver Rating Report
         if 'driver' in filename and ('rating' in filename or 'report' in filename):
             data = parse_driver_rating_report(response.content)
             redis_set('driver_ratings_latest', data)
             print(f"Driver ratings saved: {data['total_drivers']} drivers")
 
-        # Fleet roster from Amazon AFS
         elif filename.endswith('.xlsx') and ('vehicle' in filename or 'fleet' in filename or 'van' in filename):
             import openpyxl
             wb = openpyxl.load_workbook(io.BytesIO(response.content))
