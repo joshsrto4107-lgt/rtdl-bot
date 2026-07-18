@@ -415,10 +415,11 @@ def get_data(key):
             return jsonify(result)
     return jsonify(result)
 
-@app.route('/test-save', methods=['GET'])
-def test_save():
-    redis_set('test_key', {'message': 'hello', 'status': 'working'})
-    return 'Saved test data to Upstash'
+@app.route('/clear/<key>', methods=['GET'])
+def clear_key(key):
+    headers = {"Authorization": f"Bearer {UPSTASH_TOKEN}"}
+    requests.get(f"{UPSTASH_URL}/del/{key}", headers=headers)
+    return f'Cleared {key}'
 
 @app.route('/', methods=['GET'])
 def home():
