@@ -3150,6 +3150,7 @@ function renderFleetRoster(roster) {
 // DRIVER RATINGS DISPLAY
 // ═══════════════════════════════════════════════════
 function renderDriverRatings(data) {
+  renderWriteupsSection(data);
   if (!data || !data.drivers) return;
 
   const { drivers, top_6, bottom_5, top_rescuers, flagged, total_drivers } = data;
@@ -3564,6 +3565,93 @@ function saveIncidentUpdates() {
   saveState();
   closeModal('incident-detail-modal');
   renderIncidents(incidents);
+}
+
+
+// ═══════════════════════════════════════════════════
+// WRITE-UPS & DISCIPLINE TRACKER
+// ═══════════════════════════════════════════════════
+function renderWriteupsSection(data) {
+  if (!data || !data.drivers) return;
+
+  const { drivers } = data;
+
+  // Drivers approaching termination (3+ write-ups)
+  const termRisk = drivers.filter(d => d.writeups && d.writeups >= 3);
+
+  // Drivers with issues but no write-ups (management accountability)
+  const unaddressed = drivers.filter(d => {
+    const hasIssues = (d.callouts && d.callouts >= 3) || (d.speeding && d.speeding > 10) || (d.damages && d.damages > 0);
+    const noWriteups = !d.writeups || d.writeups === 0;
+    return hasIssues && noWriteups;
+  });
+
+  let card = document.getElementById('writeups-card');
+  if (!card) {
+    const scSection = document.getElementById('section-scorecard');
+    card = document.createElement('div');
+    card.id = 'writeups-card';
+    card.className = 'card';
+    card.style.marginTop = '20px';
+    scSection.appendChild(card);
+  }
+
+  card.innerHTML = `
+    <div class="card-title">📋 Discipline Tracker <span class="pill ${termRisk.length > 0 ? 'red' : 'green'}" style="margin-left:8px;">${termRisk.length > 0 ? termRisk.length + ' Approaching Termination' : '✓ No Termination Risk'}</span></div>
+
+    ${termRisk.length > 0 ? `
+      <div style="margin-bottom:20px;">
+        <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.8px; color:var(--red); margin-bottom:12px;">🚨 Termination Risk — 3+ Write-Ups</div>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          ${termRisk.map(d => `
+            <div style="display:flex; align-items:center; gap:12px; padding:14px; background:rgba(239,68,68,0.08); border-radius:8px; border:1px solid rgba(239,68,68,0.2);">
+              <div style="flex:1;">
+                <div style="font-size:14px; font-weight:700; color:var(--white);">${d.name}</div>
+                <div style="font-size:11px; color:var(--gray); margin-top:3px;">
+                  Rating: ${d.total_rating ?? '—'} | Callouts: ${d.callouts ?? 0} | Damages: ${d.damages ?? 0}
+                </div>
+              </div>
+              <div style="text-align:center; padding:8px 16px; background:rgba(239,68,68,0.2); border-radius:8px;">
+                <div style="font-size:22px; font-weight:800; color:var(--red); font-family:'JetBrains Mono',monospace;">${d.writeups}</div>
+                <div style="font-size:9px; color:var(--red); text-transform:uppercase; letter-spacing:0.8px;">Write-ups</div>
+              </div>
+              <div style="text-align:right;">
+                <span class="pill red">Discuss with Ops Manager</span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    ` : `
+      <div class="alert green" style="margin-bottom:20px;">
+        <div class="alert-icon">✅</div>
+        <div>
+          <div class="alert-title">No Drivers Approaching Termination</div>
+          <div class="alert-text">No drivers currently have 3 or more write-ups.</div>
+        </div>
+      </div>
+    `}
+
+    ${unaddressed.length > 0 ? `
+      <div>
+        <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.8px; color:var(--yellow); margin-bottom:12px;">⚠️ Management Accountability — Issues Not Addressed</div>
+        <div style="font-size:12px; color:var(--gray); margin-bottom:10px;">These drivers have performance issues but no write-ups. Verify your management team is following the discipline process.</div>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          ${unaddressed.map(d => `
+            <div style="display:flex; align-items:center; gap:12px; padding:12px; background:rgba(234,179,8,0.08); border-radius:8px; border:1px solid rgba(234,179,8,0.2);">
+              <div style="flex:1;">
+                <div style="font-size:13px; font-weight:600; color:var(--white);">${d.name}</div>
+                <div style="font-size:11px; color:var(--gray); margin-top:3px;">
+                  ${d.callouts >= 3 ? `Callouts: ${d.callouts} ` : ''}${d.speeding > 10 ? `Speeding: ${d.speeding} ` : ''}${d.damages > 0 ? `Damages: ${d.damages}` : ''}
+                </div>
+              </div>
+              <span class="pill yellow">No Write-ups on File</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    ` : ''}
+  `;
 }
 
 // ── INIT ──
