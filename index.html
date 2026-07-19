@@ -3597,7 +3597,10 @@ function renderWriteupsSection(data) {
   }
 
   card.innerHTML = `
-    <div class="card-title">📋 Discipline Tracker <span class="pill ${termRisk.length > 0 ? 'red' : 'green'}" style="margin-left:8px;">${termRisk.length > 0 ? termRisk.length + ' Approaching Termination' : '✓ No Termination Risk'}</span></div>
+    <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+      <div class="card-title" style="margin-bottom:0;">📋 Discipline Tracker <span class="pill ${termRisk.length > 0 ? 'red' : 'green'}" style="margin-left:8px;">${termRisk.length > 0 ? termRisk.length + ' Approaching Termination' : '✓ No Termination Risk'}</span></div>
+      ${unaddressed.length > 0 ? `<button class="btn btn-ghost" style="font-size:12px;" onclick="exportUnaddressed()">⬇️ Export Unaddressed List</button>` : ''}
+    </div>
 
     ${termRisk.length > 0 ? `
       <div style="margin-bottom:20px;">
@@ -3652,6 +3655,40 @@ function renderWriteupsSection(data) {
       </div>
     ` : ''}
   `;
+}
+
+
+function exportUnaddressed() {
+  const data = state.slackData?.driverRatings?.drivers || [];
+  const unaddressed = data.filter(d => {
+    const hasIssues = (d.callouts && d.callouts >= 3) || (d.speeding && d.speeding > 10) || (d.damages && d.damages > 0);
+    const noWriteups = !d.writeups || d.writeups === 0;
+    return hasIssues && noWriteups;
+  });
+
+  if (unaddressed.length === 0) {
+    alert('No unaddressed drivers to export.');
+    return;
+  }
+
+  const headers = ['Driver Name', 'Callouts', 'Speeding Rate', 'Damages', 'Total Rating', 'Write-ups on File'];
+  const rows = unaddressed.map(d => [
+    d.name,
+    d.callouts ?? 0,
+    d.speeding ?? 0,
+    d.damages ?? 0,
+    d.total_rating ?? 0,
+    d.writeups ?? 0
+  ]);
+
+  const csv = [headers, ...rows].map(r => r.join(',')).join('\n');
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Unaddressed_Drivers_${new Date().toISOString().split('T')[0]}.csv`;
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 // ── INIT ──
