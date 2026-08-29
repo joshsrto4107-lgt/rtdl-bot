@@ -8,9 +8,9 @@
   @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
 
   :root {
-    --navy: #0D1B2A;
-    --navy-mid: #1A2E45;
-    --navy-light: #243B55;
+    --navy: #000000;
+    --navy-mid: #111111;
+    --navy-light: #1a1a1a;
     --blue: #1F4E79;
     --blue-bright: #2E74B5;
     --teal: #17758A;
@@ -540,6 +540,31 @@
   .priority-sub { font-size: 12px; color: var(--gray); margin-top: 2px; }
 
   /* SCORECARD BARS */
+  /* Amazon-style tier bar */
+  .amz-tier-bar-wrap { margin: 6px 0 10px; }
+  .amz-tier-bar { display: flex; gap: 3px; height: 7px; width: 100%; }
+  .amz-tier-seg { flex: 1; border-radius: 2px; background: rgba(255,255,255,0.1); }
+  .amz-tier-seg.filled { background: #2ec4b6; }
+  .amz-tier-seg.current { background: #f97316; }
+  .amz-tier-labels { display: flex; margin-top: 4px; }
+  .amz-tier-label { flex: 1; font-size: 9px; color: var(--gray); text-align: center; letter-spacing: 0.3px; }
+  .amz-tier-label.active { color: #f97316; font-weight: 700; }
+  .amz-section-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 0 0; border-top: 1px solid var(--border); margin-top: 12px; }
+  .amz-section-title { font-size: 14px; font-weight: 700; color: var(--white); }
+  .amz-section-tier { font-size: 13px; font-weight: 600; }
+  .amz-metric-row { display: flex; align-items: center; justify-content: space-between; padding: 5px 0 5px 16px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+  .amz-metric-name { font-size: 12px; color: rgba(255,255,255,0.7); flex: 1; }
+  .amz-metric-val { font-size: 12px; color: var(--gray); margin-right: 8px; }
+  .amz-metric-tier { font-size: 11px; font-weight: 600; min-width: 80px; text-align: right; }
+  .amz-compliant { color: #2ec4b6; }
+  .amz-focus-item { font-size: 12px; color: var(--gray); padding: 3px 0; }
+  .amz-focus-item::before { content: '→ '; color: var(--wave); }
+  /* Tier bar for mgr metric display */
+  .mgr-metric-tier-row { margin-bottom: 10px; }
+  .mgr-metric-tier-label { display: flex; justify-content: space-between; margin-bottom: 4px; }
+  .mgr-metric-icon-name { font-size: 11px; color: var(--gray); text-transform: uppercase; letter-spacing: 0.7px; }
+  .mgr-metric-tier-val { font-size: 12px; font-weight: 700; }
+
   .metric-row {
     display: flex;
     align-items: center;
@@ -670,6 +695,7 @@
   <button class="nav-tab" onclick="showSection('ramp')">📈 Capacity Planning</button>
   <button class="nav-tab" onclick="showSection('calendar')">📅 Calendar</button>
   <button class="nav-tab" onclick="showSection('incidents')">🚨 Incidents</button>
+  <button class="nav-tab" onclick="showSection('management')">👥 Management</button>
 </div>
 
 <!-- MAIN -->
@@ -780,9 +806,14 @@
     <div class="section-header">
       <div>
         <div class="section-title">Scorecard Tracker</div>
-        <div class="section-sub">Weekly Amazon + LMDmax metrics — enter from your scorecard each week</div>
+        <div class="section-sub">Weekly Amazon + LMDmax metrics — upload the PDF to Slack for auto-fill</div>
       </div>
-      <button class="btn btn-primary" onclick="openModal('scorecard-modal')">+ Log This Week</button>
+      <button class="btn btn-primary" onclick="openModal('scorecard-modal')">+ Log Manually</button>
+    </div>
+
+    <!-- Amazon Scorecard PDF Display -->
+    <div class="card" id="amazon-scorecard-card" style="margin-bottom:20px;">
+      <div style="color:var(--gray); font-size:13px; padding:8px;">Loading scorecard data...</div>
     </div>
 
     <div class="grid-4">
@@ -1349,6 +1380,93 @@
     </div>
   </div>
 
+
+  <!-- MANAGEMENT PERFORMANCE -->
+  <div class="section" id="section-management">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Management Performance</div>
+        <div class="section-sub">Quarterly reviews for your management team</div>
+      </div>
+      <button class="btn btn-primary" onclick="openModal('add-manager-modal')">+ Add Manager</button>
+    </div>
+
+    <div id="managers-container">
+      <div style="text-align:center; color:var(--gray); padding:40px; font-size:13px;">
+        No managers added yet. Click "+ Add Manager" to get started.
+      </div>
+    </div>
+
+    <!-- People Management — Complaints Panel -->
+    <div class="card" style="margin-top:20px;">
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;">
+        <div>
+          <div style="font-size:14px; font-weight:700; color:var(--white);">👥 Manager Complaint Log</div>
+          <div style="font-size:11px; color:var(--gray); margin-top:2px;">Auto-pulled from Incidents — flagged when complaint is about a manager</div>
+        </div>
+      </div>
+      <div id="manager-complaints-panel">
+        <div style="color:var(--gray); font-size:12px; padding:8px 0;">Loading...</div>
+      </div>
+    </div>
+
+    <!-- Add Manager Modal -->
+    <div class="modal-overlay" id="add-manager-modal">
+      <div class="modal">
+        <div style="font-size:18px; font-weight:700; margin-bottom:20px;">Add Manager</div>
+        <div class="form-group">
+          <label class="label">Full Name</label>
+          <input class="input" id="mgr-name" placeholder="e.g. John Smith">
+        </div>
+        <div class="form-group">
+          <label class="label">Role / Title</label>
+          <input class="input" id="mgr-role" placeholder="e.g. Operations Manager">
+        </div>
+        <div class="form-group">
+          <label class="label">Start Date</label>
+          <input class="input" type="date" id="mgr-start">
+        </div>
+        <div class="flex gap-8" style="justify-content:flex-end; margin-top:16px;">
+          <button class="btn btn-ghost" onclick="closeModal('add-manager-modal')">Cancel</button>
+          <button class="btn btn-primary" onclick="addManager()">Add Manager</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Score Manager Modal -->
+    <div class="modal-overlay" id="score-manager-modal">
+      <div class="modal" style="width:600px; max-width:95vw;">
+        <div style="font-size:18px; font-weight:700; margin-bottom:4px;" id="score-modal-name"></div>
+        <div style="font-size:12px; color:var(--gray); margin-bottom:20px;" id="score-modal-role"></div>
+
+        <div style="display:flex; flex-direction:column; gap:16px;">
+          ${['Scorecard', 'Fleet Health', 'Task Completion', 'People Management'].map(metric => `
+          <div>
+            <label class="label">${metric}</label>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              ${['Poor', 'Fair', 'Good', 'Fantastic', 'Fantastic Plus'].map(tier => `
+                <button class="tier-btn" data-metric="${metric}" data-tier="${tier}" onclick="selectTier(this)"
+                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
+                  ${tier}
+                </button>
+              `).join('')}
+            </div>
+          </div>
+          `).join('')}
+        </div>
+
+        <div class="form-group" style="margin-top:16px;">
+          <label class="label">Notes</label>
+          <textarea class="input" id="score-notes" rows="3" placeholder="Any notes for this review period..."></textarea>
+        </div>
+
+        <div class="flex gap-8" style="justify-content:flex-end; margin-top:16px;">
+          <button class="btn btn-ghost" onclick="closeModal('score-manager-modal')">Cancel</button>
+          <button class="btn btn-primary" onclick="saveManagerScore()">Save Review</button>
+        </div>
+      </div>
+    </div>
+  </div>
 </div><!-- /main -->
 
 <!-- ═══════════════════════════════════════════════════ -->
@@ -2220,6 +2338,7 @@ function toggleMic() {
 // RENDER ALL
 // ═══════════════════════════════════════════════════
 function renderAll() {
+  renderManagers();
   renderScorecard();
   renderManagement();
   renderFleet();
@@ -2227,6 +2346,9 @@ function renderAll() {
   renderRamp();
   renderCalendar();
   renderMorningBrief();
+  // Async data-driven renders
+  renderAmazonScorecard();
+  renderManagerComplaints();
 }
 
 
@@ -3599,7 +3721,7 @@ function renderWriteupsSection(data) {
   card.innerHTML = `
     <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
       <div class="card-title" style="margin-bottom:0;">📋 Discipline Tracker <span class="pill ${termRisk.length > 0 ? 'red' : 'green'}" style="margin-left:8px;">${termRisk.length > 0 ? termRisk.length + ' Approaching Termination' : '✓ No Termination Risk'}</span></div>
-      ${unaddressed.length > 0 ? `<button class="btn btn-ghost" style="font-size:12px;" onclick="exportUnaddressed()">⬇️ Export Unaddressed List</button>` : ''}
+      <button class="btn btn-ghost" style="font-size:12px;" onclick="exportUnaddressed()">⬇️ Export Unaddressed List</button>
     </div>
 
     ${termRisk.length > 0 ? `
@@ -3689,6 +3811,365 @@ function exportUnaddressed() {
   a.download = `Unaddressed_Drivers_${new Date().toISOString().split('T')[0]}.csv`;
   a.click();
   URL.revokeObjectURL(url);
+}
+
+
+// ═══════════════════════════════════════════════════
+// MANAGEMENT PERFORMANCE
+// ═══════════════════════════════════════════════════
+let currentManagerId = null;
+
+const TIER_COLORS = {
+  'Poor': { bg: 'rgba(239,68,68,0.2)', border: 'rgba(239,68,68,0.5)', color: 'var(--red)' },
+  'Fair': { bg: 'rgba(234,179,8,0.2)', border: 'rgba(234,179,8,0.5)', color: 'var(--yellow)' },
+  'Good': { bg: 'rgba(75,172,198,0.2)', border: 'rgba(75,172,198,0.5)', color: 'var(--wave)' },
+  'Fantastic': { bg: 'rgba(34,197,94,0.2)', border: 'rgba(34,197,94,0.5)', color: 'var(--green)' },
+  'Fantastic Plus': { bg: 'rgba(34,197,94,0.3)', border: 'rgba(34,197,94,0.8)', color: 'var(--green)' }
+};
+
+const TIER_RANK = { 'Poor': 1, 'Fair': 2, 'Good': 3, 'Fantastic': 4, 'Fantastic Plus': 5 };
+
+function getTierColor(tier) {
+  return TIER_COLORS[tier] || { bg: 'rgba(255,255,255,0.05)', border: 'var(--border)', color: 'var(--gray)' };
+}
+
+// ── AMAZON-STYLE TIER BAR ──────────────────────────────────
+const AMZ_TIERS = ['Poor', 'Fair', 'Great', 'Fantastic', 'Fantastic Plus'];
+const MGR_TIERS = ['Poor', 'Fair', 'Good', 'Fantastic', 'Fantastic Plus'];
+const TIER_COLOR_MAP = {
+  'Poor': 'var(--red)', 'Fair': 'var(--yellow)', 'Great': 'var(--wave)',
+  'Good': 'var(--wave)', 'Fantastic': 'var(--green)', 'Fantastic Plus': '#00ff88'
+};
+
+function renderTierBar(tier, useAmazonTiers) {
+  const tiers = useAmazonTiers ? AMZ_TIERS : MGR_TIERS;
+  const tierIdx = tiers.findIndex(t => t.toLowerCase() === (tier || '').toLowerCase());
+  const segments = tiers.map((t, i) => {
+    const cls = i < tierIdx ? 'filled' : (i === tierIdx ? 'current' : '');
+    return `<div class="amz-tier-seg ${cls}"></div>`;
+  }).join('');
+  const labels = tiers.map((t, i) => {
+    const active = i === tierIdx ? ' active' : '';
+    return `<div class="amz-tier-label${active}">${t}</div>`;
+  }).join('');
+  return `<div class="amz-tier-bar-wrap">
+    <div class="amz-tier-bar">${segments}</div>
+    <div class="amz-tier-labels">${labels}</div>
+  </div>`;
+}
+
+function tierColor(tier) {
+  return TIER_COLOR_MAP[tier] || 'var(--gray)';
+}
+
+// ── AMAZON SCORECARD DISPLAY ──────────────────────────────
+async function renderAmazonScorecard() {
+  const card = document.getElementById('amazon-scorecard-card');
+  if (!card) return;
+  try {
+    const res = await fetch(`${BOT_URL}/data/scorecard_weekly_latest`);
+    const json = await res.json();
+    const d = json.result;
+    if (!d || !d.overall_tier) {
+      card.innerHTML = '<div style="color:var(--gray); font-size:13px; padding:16px;">No scorecard uploaded yet. Post the Amazon DSP Scorecard PDF to Slack to see it here.</div>';
+      return;
+    }
+
+    const metricRow = (name, val, tier) => {
+      const color = tierColor(tier);
+      return `<div class="amz-metric-row">
+        <span class="amz-metric-name">ℹ ${name}</span>
+        <span class="amz-metric-val">${val || ''}</span>
+        <span class="amz-metric-tier" style="color:${color};">${tier || ''}</span>
+      </div>`;
+    };
+
+    const complianceRow = (name, val) => `<div class="amz-metric-row">
+      <span class="amz-metric-name">ℹ ${name}</span>
+      <span class="amz-metric-tier amz-compliant">${val || ''}</span>
+    </div>`;
+
+    card.innerHTML = `
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+        <div style="font-size:20px; font-weight:800; color:var(--white);">DSP Scorecard</div>
+        <div style="font-size:12px; color:var(--gray);">${d.station || 'DFB1'} · Week ${d.week || '—'}, ${d.year || ''}</div>
+      </div>
+
+      <div style="margin-bottom:16px;">
+        <div style="display:flex; align-items:baseline; gap:10px; margin-bottom:2px;">
+          <span style="font-size:13px; font-weight:600; color:var(--gray);">Overall Standing:</span>
+          <span style="font-size:18px; font-weight:800; color:${tierColor(d.overall_tier)};">${d.overall_score || ''}</span>
+          <span style="font-size:15px; font-weight:700; color:${tierColor(d.overall_tier)};">${d.overall_tier || ''}</span>
+        </div>
+        ${renderTierBar(d.overall_tier, true)}
+      </div>
+
+      <!-- Safety & Compliance -->
+      <div class="amz-section-header">
+        <span class="amz-section-title">Safety and Compliance</span>
+        <span class="amz-section-tier" style="color:${tierColor(d.safety_tier)};">${d.safety_tier || ''}</span>
+      </div>
+      ${renderTierBar(d.safety_tier, true)}
+      ${d.seatbelt ? metricRow('Seatbelt-Off Rate', d.seatbelt.value + ' per 100 trips', d.seatbelt.tier) : ''}
+      ${d.speeding ? metricRow('Speeding Event Rate', d.speeding.value + ' per 100 trips', d.speeding.tier) : ''}
+      ${d.sign_signal ? metricRow('Sign/Signal Violations Rate', d.sign_signal.value + ' per 100 trips', d.sign_signal.tier) : ''}
+      ${d.distractions ? metricRow('Distractions Rate', d.distractions.value + ' per 100 trips', d.distractions.tier) : ''}
+      ${d.following_distance ? metricRow('Following Distance Rate', d.following_distance.value + ' per 100 trips', d.following_distance.tier) : ''}
+      ${d.breach_of_contract ? complianceRow('Breach of Contract', d.breach_of_contract) : ''}
+      ${d.cas ? complianceRow('Comprehensive Audit (CAS)', d.cas) : ''}
+
+      <!-- Delivery Quality -->
+      <div class="amz-section-header">
+        <span class="amz-section-title">Delivery Quality</span>
+        <span class="amz-section-tier" style="color:${tierColor(d.delivery_quality_tier)};">${d.delivery_quality_tier || ''}</span>
+      </div>
+      ${renderTierBar(d.delivery_quality_tier, true)}
+      ${d.ced_dpmo ? metricRow('Customer Escalation Defect DPMO', d.ced_dpmo.value, d.ced_dpmo.tier) : ''}
+      ${d.cdf_dpmo ? metricRow('Customer Delivery Feedback DPMO', d.cdf_dpmo.value, d.cdf_dpmo.tier) : ''}
+      ${d.dc_dpmo ? metricRow('Delivery Completion DPMO', d.dc_dpmo.value, d.dc_dpmo.tier) : ''}
+      ${d.dsb ? metricRow('Delivery Success Behaviors', d.dsb.value, d.dsb.tier) : ''}
+      ${d.pod ? metricRow('Photo-On-Delivery Acceptance Rate', d.pod.value, d.pod.tier) : ''}
+
+      <!-- Team and Fleet -->
+      <div class="amz-section-header">
+        <span class="amz-section-title">Team and Fleet</span>
+        <span class="amz-section-tier" style="color:${tierColor(d.team_fleet_tier)};">${d.team_fleet_tier || ''}</span>
+      </div>
+      ${renderTierBar(d.team_fleet_tier, true)}
+      ${d.tenured_workforce ? metricRow('Tenured Workforce', d.tenured_workforce.value, d.tenured_workforce.tier) : ''}
+      ${d.fleet_execution ? metricRow('Fleet Execution', d.fleet_execution.value, d.fleet_execution.tier) : ''}
+
+      ${d.focus_areas && d.focus_areas.length > 0 ? `
+      <div class="amz-section-header" style="margin-top:16px;">
+        <span class="amz-section-title">Recommended Focus Areas</span>
+      </div>
+      <div style="padding:8px 0;">
+        ${d.focus_areas.map(f => `<div class="amz-focus-item">${f}</div>`).join('')}
+      </div>` : ''}
+    `;
+  } catch(e) {
+    if (card) card.innerHTML = '<div style="color:var(--gray); font-size:13px; padding:16px;">Could not load scorecard data.</div>';
+  }
+}
+
+// ── MANAGER COMPLAINTS (People Management) ───────────────
+async function renderManagerComplaints() {
+  const el = document.getElementById('manager-complaints-panel');
+  if (!el) return;
+  try {
+    const res = await fetch(`${BOT_URL}/data/manager_complaints_all`);
+    const json = await res.json();
+    const complaints = json.result;
+    if (!complaints || complaints.length === 0) {
+      el.innerHTML = '<div style="color:var(--gray); font-size:12px; padding:12px 0;">No manager complaints on file. Incidents are automatically flagged when a complaint against a manager is included in the description.</div>';
+      return;
+    }
+    el.innerHTML = complaints.map((c, i) => `
+      <div style="padding:12px; background:rgba(239,68,68,0.06); border:1px solid rgba(239,68,68,0.2); border-radius:8px; margin-bottom:8px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;">
+          <span style="font-size:13px; font-weight:700; color:var(--white);">Complaint #${i+1} — ${c.driver || 'Unknown Driver'}</span>
+          <span style="font-size:11px; color:var(--gray);">${c.incident_datetime || c.date || ''}</span>
+        </div>
+        ${c.description ? `<div style="font-size:12px; color:rgba(255,255,255,0.7); margin-bottom:6px;"><strong>Description:</strong> ${c.description}</div>` : ''}
+        ${c.statement ? `<div style="font-size:12px; color:rgba(255,255,255,0.7); margin-bottom:4px;"><strong>Driver Statement:</strong> ${c.statement}</div>` : ''}
+        ${c.manager_statement ? `<div style="font-size:12px; color:rgba(255,255,255,0.7);"><strong>Manager Statement:</strong> ${c.manager_statement}</div>` : ''}
+      </div>
+    `).join('');
+  } catch(e) {
+    el.innerHTML = '<div style="color:var(--gray); font-size:12px;">Could not load complaint data.</div>';
+  }
+}
+
+function addManager() {
+  const name = document.getElementById('mgr-name').value.trim();
+  const role = document.getElementById('mgr-role').value.trim();
+  const start = document.getElementById('mgr-start').value;
+  if (!name || !role) { alert('Please enter a name and role.'); return; }
+
+  if (!state.managers) state.managers = [];
+  state.managers.push({
+    id: Date.now(),
+    name,
+    role,
+    start,
+    reviews: []
+  });
+
+  saveState();
+  closeModal('add-manager-modal');
+  document.getElementById('mgr-name').value = '';
+  document.getElementById('mgr-role').value = '';
+  document.getElementById('mgr-start').value = '';
+  renderManagers();
+}
+
+function openScoreModal(id) {
+  currentManagerId = id;
+  const manager = state.managers.find(m => m.id === id);
+  if (!manager) return;
+
+  document.getElementById('score-modal-name').textContent = manager.name;
+  document.getElementById('score-modal-role').textContent = manager.role;
+  document.getElementById('score-notes').value = '';
+
+  // Reset all tier buttons
+  document.querySelectorAll('.tier-btn').forEach(btn => {
+    btn.style.background = 'transparent';
+    btn.style.borderColor = 'var(--border)';
+    btn.style.color = 'var(--gray)';
+  });
+
+  openModal('score-manager-modal');
+}
+
+function selectTier(btn) {
+  const metric = btn.getAttribute('data-metric');
+  const tier = btn.getAttribute('data-tier');
+  const colors = getTierColor(tier);
+
+  // Reset all buttons for this metric
+  document.querySelectorAll(`.tier-btn[data-metric="${metric}"]`).forEach(b => {
+    b.style.background = 'transparent';
+    b.style.borderColor = 'var(--border)';
+    b.style.color = 'var(--gray)';
+  });
+
+  // Highlight selected
+  btn.style.background = colors.bg;
+  btn.style.borderColor = colors.border;
+  btn.style.color = colors.color;
+}
+
+function saveManagerScore() {
+  const manager = state.managers.find(m => m.id === currentManagerId);
+  if (!manager) return;
+
+  const metrics = ['Scorecard', 'Fleet Health', 'Task Completion', 'People Management'];
+  const scores = {};
+
+  metrics.forEach(metric => {
+    const selected = document.querySelector(`.tier-btn[data-metric="${metric}"][style*="rgba"]`);
+    if (selected) scores[metric] = selected.getAttribute('data-tier');
+  });
+
+  if (Object.keys(scores).length < 4) {
+    alert('Please score all 4 metrics before saving.');
+    return;
+  }
+
+  const review = {
+    date: new Date().toLocaleDateString(),
+    quarter: getCurrentQuarter(),
+    scores,
+    notes: document.getElementById('score-notes').value,
+    overall: getOverallTier(scores)
+  };
+
+  if (!manager.reviews) manager.reviews = [];
+  manager.reviews.push(review);
+  saveState();
+  closeModal('score-manager-modal');
+  renderManagers();
+}
+
+function getCurrentQuarter() {
+  const month = new Date().getMonth();
+  if (month < 3) return 'Q1';
+  if (month < 6) return 'Q2';
+  if (month < 9) return 'Q3';
+  return 'Q4';
+}
+
+function getOverallTier(scores) {
+  const values = Object.values(scores).map(t => TIER_RANK[t] || 0);
+  const avg = values.reduce((a, b) => a + b, 0) / values.length;
+  if (avg >= 4.5) return 'Fantastic Plus';
+  if (avg >= 3.5) return 'Fantastic';
+  if (avg >= 2.5) return 'Good';
+  if (avg >= 1.5) return 'Fair';
+  return 'Poor';
+}
+
+function deleteManager(id) {
+  if (!confirm('Remove this manager from tracking?')) return;
+  state.managers = state.managers.filter(m => m.id !== id);
+  saveState();
+  renderManagers();
+}
+
+function renderManagers() {
+  const managers = state.managers || [];
+  const container = document.getElementById('managers-container');
+
+  if (managers.length === 0) {
+    container.innerHTML = '<div style="text-align:center; color:var(--gray); padding:40px; font-size:13px;">No managers added yet. Click "+ Add Manager" to get started.</div>';
+    return;
+  }
+
+  container.innerHTML = managers.map(mgr => {
+    const latestReview = mgr.reviews && mgr.reviews.length > 0 ? mgr.reviews[mgr.reviews.length - 1] : null;
+    const overall = latestReview ? latestReview.overall : null;
+    const colors = overall ? getTierColor(overall) : { bg: 'rgba(255,255,255,0.04)', border: 'var(--border)', color: 'var(--gray)' };
+
+    const metrics = ['Scorecard', 'Fleet Health', 'Task Completion', 'People Management'];
+    const metricIcons = { 'Scorecard': '📊', 'Fleet Health': '🚐', 'Task Completion': '✅', 'People Management': '👥' };
+
+    return `
+      <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <div style="width:48px; height:48px; border-radius:50%; background:${colors.bg}; border:2px solid ${colors.border}; display:flex; align-items:center; justify-content:center; font-size:20px;">👤</div>
+            <div>
+              <div style="font-size:16px; font-weight:700; color:var(--white);">${mgr.name}</div>
+              <div style="font-size:12px; color:var(--gray);">${mgr.role}${mgr.start ? ' · Since ' + new Date(mgr.start).toLocaleDateString('en-US', {month:'short', year:'numeric'}) : ''}</div>
+            </div>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px;">
+            ${overall ? `<span style="padding:6px 14px; border-radius:20px; font-size:12px; font-weight:600; background:${colors.bg}; border:1px solid ${colors.border}; color:${colors.color};">${overall}</span>` : '<span class="pill" style="color:var(--gray);">No Review Yet</span>'}
+            <button class="btn btn-primary" style="font-size:12px; padding:8px 14px;" onclick="openScoreModal(${mgr.id})">+ Review</button>
+            <button class="btn btn-ghost" style="font-size:12px; padding:8px 14px; color:var(--red);" onclick="deleteManager(${mgr.id})">Remove</button>
+          </div>
+        </div>
+
+        ${latestReview ? `
+          <div style="display:flex; flex-direction:column; gap:4px; margin-bottom:${mgr.reviews.length > 1 ? '16px' : '0'};">
+            ${metrics.map(metric => {
+              const score = latestReview.scores[metric];
+              const c = getTierColor(score);
+              return `<div class="mgr-metric-tier-row">
+                <div class="mgr-metric-tier-label">
+                  <span class="mgr-metric-icon-name">${metricIcons[metric]} ${metric}</span>
+                  <span class="mgr-metric-tier-val" style="color:${c.color};">${score || '—'}</span>
+                </div>
+                ${score ? renderTierBar(score, false) : ''}
+              </div>`;
+            }).join('')}
+          </div>
+          ${latestReview.notes ? `<div style="font-size:12px; color:var(--gray); font-style:italic; margin-top:8px;">"${latestReview.notes}"</div>` : ''}
+          <div style="font-size:11px; color:var(--gray); margin-top:8px;">Last reviewed: ${latestReview.date} · ${latestReview.quarter}</div>
+        ` : `
+          <div style="text-align:center; padding:20px; color:var(--gray); font-size:13px;">
+            No reviews yet. Click "+ Review" to score this manager.
+          </div>
+        `}
+
+        ${mgr.reviews && mgr.reviews.length > 1 ? `
+          <div style="margin-top:16px; padding-top:16px; border-top:1px solid var(--border);">
+            <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.8px; color:var(--gray); margin-bottom:8px;">Review History</div>
+            <div style="display:flex; flex-direction:column; gap:6px;">
+              ${mgr.reviews.slice().reverse().slice(1).map(r => {
+                const c = getTierColor(r.overall);
+                return `<div style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:rgba(255,255,255,0.03); border-radius:6px;">
+                  <span style="font-size:12px; color:var(--gray);">${r.quarter} · ${r.date}</span>
+                  <span style="font-size:12px; font-weight:600; color:${c.color};">${r.overall}</span>
+                </div>`;
+              }).join('')}
+            </div>
+          </div>
+        ` : ''}
+      </div>
+    `;
+  }).join('');
 }
 
 // ── INIT ──
