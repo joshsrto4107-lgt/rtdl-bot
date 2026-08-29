@@ -59,7 +59,7 @@ def parse_daily_wash(text):
     if terminations: data['terminations'] = terminations.group(1)
     training = re.search(r'(\d+)\s*Training', text, re.IGNORECASE)
     if training: data['training'] = training.group(1)
-    c1_waves = re.findall(r'Wave (\d+)\s*First van in[:\-\s]*([\d:]+).*?Last van out[:\-\s]*([\d:]+)', text, re.IGNORECASE)
+    c1_waves = re.findall(r'Wave (\d+)\s*First van in[\:\-\s]*([\d:]+).*?Last van out[\:\-\s]*([\d:]+)', text, re.IGNORECASE)
     if c1_waves:
         data['c1_waves'] = [{'wave': w[0], 'first_in': w[1], 'last_out': w[2]} for w in c1_waves]
     return data
@@ -91,7 +91,7 @@ def parse_capacity(text):
         line = line.strip()
         if not line:
             continue
-        week_match = re.search(r'week\s*(\d+).*?(cycle\s*\d+)', line, re.IGNORECASE)
+        week_match = re.search(r'week\s*(\d+).*(cycle\s*\d+)', line, re.IGNORECASE)
         if week_match:
             if current_week and days:
                 weeks.append({'week': current_week, 'cycle': current_cycle, 'days': days})
@@ -135,8 +135,8 @@ def parse_incident_report(text):
     data = {'raw': text, 'date': text.split('\n')[0], 'status': 'Open', 'photos': []}
     normalized = text
     field_labels = ['Driver:', 'Type:', 'Date/Time:', 'Location:', 'CRS Case #:',
-                    'LMET #:', 'Description:', 'Statement:', 'LMET Called:',
-                    'Law Enforcement:', 'Photos:']
+                    'LMET #:', 'Description:', 'Statement:', 'Manager Statement:',
+                    'LMET Called:', 'Law Enforcement:', 'Photos:']
     for label in field_labels:
         normalized = normalized.replace(label, '\n' + label)
     lines = [l.strip() for l in normalized.split('\n') if l.strip()]
@@ -157,12 +157,29 @@ def parse_incident_report(text):
             data['description'] = line.replace('Description:', '').strip()
         elif line.startswith('Statement:'):
             data['statement'] = line.replace('Statement:', '').strip()
+        elif line.startswith('Manager Statement:'):
+            data['manager_statement'] = line.replace('Manager Statement:', '').strip()
         elif line.startswith('LMET Called:'):
             data['lmet_called'] = line.replace('LMET Called:', '').strip()
         elif line.startswith('Law Enforcement:'):
             data['law_enforcement'] = line.replace('Law Enforcement:', '').strip()
         elif line.startswith('Photos:'):
             data['photos_noted'] = line.replace('Photos:', '').strip()
+
+    # Detect manager complaints — check type, description, statement for keywords
+    complaint_text = (
+        data.get('type', '') + ' ' +
+        data.get('description', '') + ' ' +
+        data.get('statement', '')
+    ).lower()
+    manager_keywords = [
+        'complaint about manager', 'complaint against manager',
+        'complaint about ops', 'manager complaint', 'manager misconduct',
+        'ops manager complaint', 'harassment by manager', 'hostile manager',
+        'supervisor complaint', 'complaint about supervisor'
+    ]
+    data['is_manager_complaint'] = any(kw in complaint_text for kw in manager_keywords)
+
     return data
 
 def parse_writeup(text):
@@ -187,6 +204,102 @@ def parse_writeup(text):
             data['description'] = line.replace('Description:', '').strip()
         elif line.startswith('Acknowledged:'):
             data['acknowledged'] = line.replace('Acknowledged:', '').strip()
+    return data
+
+def parse_scorecard_pdf(content_bytes):
+    """Parse Amazon DSP Scorecard PDF — extracts tier and metric data."""
+    try:
+        from pypdf import PdfReader
+        reader = PdfReader(io.BytesIO(content_bytes))
+        full_text = ''
+        for page in reader.pages:
+            full_text += (page.extract_text() or '') + '\n'
+    except Exception as e:
+        print(f"PDF read error: {e}")
+        return {'error': str(e)}
+
+    data = {'raw_text': full_text[:2000]}
+
+    # Week / Year / Station
+    week_match = re.search(r'Week\s+(\d+)', full_text)
+    if week_match: data['week'] = week_match.group(1)
+    year_match = re.search(r'\b(202\d)\b', full_text)
+    if year_match: data['year'] = year_match.group(1)
+    station_match = re.search(r'(SDLL|[A-Z]{4})\s+at\s+([A-Z0-9]+)', full_text)
+    if station_match: data['station'] = f"{station_match.group(1)} at {station_match.group(2)}"
+
+    # Overall Standing
+    overall = re.search(r'Overall Standing:\s*([\d.]+)\s*\|\s*(Fantastic Plus|Fantastic|Great|Fair|Poor)', full_text, re.IGNORECASE)
+    if overall:
+        data['overall_score'] = overall.group(1)
+        data['overall_tier'] = overall.group(2).strip()
+
+    # Category tiers
+    safety_t = re.search(r'Safety and Compliance:\s*(Fantastic Plus|Fantastic|Great|Fair|Poor)', full_text, re.IGNORECASE)
+    if safety_t: data['safety_tier'] = safety_t.group(1).strip()
+
+    dq_t = re.search(r'Delivery Quality:\s*(Fantastic Plus|Fantastic|Great|Fair|Poor)', full_text, re.IGNORECASE)
+    if dq_t: data['delivery_quality_tier'] = dq_t.group(1).strip()
+
+    tf_t = re.search(r'Team and Fleet:\s*(Fantastic Plus|Fantastic|Great|Fair|Poor)', full_text, re.IGNORECASE)
+    if tf_t: data['team_fleet_tier'] = tf_t.group(1).strip()
+
+    # Safety sub-metrics
+    def extract_metric(pattern, text):
+        m = re.search(pattern, text, re.IGNORECASE)
+        if m: return {'value': m.group(1), 'tier': m.group(2).strip()}
+        return None
+
+    sb = extract_metric(r'Seatbelt.Off Rate\s+([\d.]+)\s+events[^\|]+\|\s*(Fantastic Plus|Fantastic|Great|Fair|Poor)', full_text)
+    if sb: data['seatbelt'] = sb
+
+    sp = extract_metric(r'Speeding Event Rate\s+([\d.]+)\s+events[^\|]+\|\s*(Fantastic Plus|Fantastic|Great|Fair|Poor)', full_text)
+    if sp: data['speeding'] = sp
+
+    ss = extract_metric(r'Sign.Signal Violations Rate\s+([\d.]+)\s+events[^\|]+\|\s*(Fantastic Plus|Fantastic|Great|Fair|Poor)', full_text)
+    if ss: data['sign_signal'] = ss
+
+    di = extract_metric(r'Distractions Rate\s+([\d.]+)\s+events[^\|]+\|\s*(Fantastic Plus|Fantastic|Great|Fair|Poor)', full_text)
+    if di: data['distractions'] = di
+
+    fd = extract_metric(r'Following Distance Rate\s+([\d.]+)\s+events[^\|]+\|\s*(Fantastic Plus|Fantastic|Great|Fair|Poor)', full_text)
+    if fd: data['following_distance'] = fd
+
+    # Compliance
+    boc = re.search(r'Breach of Contract\s+(Compliant|Non-Compliant)', full_text, re.IGNORECASE)
+    if boc: data['breach_of_contract'] = boc.group(1)
+
+    cas = re.search(r'Comprehensive Audit.*?(Compliant|Non-Compliant)', full_text, re.IGNORECASE)
+    if cas: data['cas'] = cas.group(1)
+
+    # Delivery Quality sub-metrics
+    ced = extract_metric(r'Customer Escalation Defect DPMO\s+([\d.]+)\s*\|\s*(Fantastic Plus|Fantastic|Great|Fair|Poor)', full_text)
+    if ced: data['ced_dpmo'] = ced
+
+    cdf = extract_metric(r'Customer Delivery Feedback DPMO\s+([\d.]+)\s*\|\s*(Fantastic Plus|Fantastic|Great|Fair|Poor)', full_text)
+    if cdf: data['cdf_dpmo'] = cdf
+
+    dc = extract_metric(r'Delivery Completion DPMO\s+([\d.]+)\s*\|\s*(Fantastic Plus|Fantastic|Great|Fair|Poor)', full_text)
+    if dc: data['dc_dpmo'] = dc
+
+    dsb = extract_metric(r'Delivery Success Behaviors\s+([\d.]+)\s*\|\s*(Fantastic Plus|Fantastic|Great|Fair|Poor)', full_text)
+    if dsb: data['dsb'] = dsb
+
+    pod = re.search(r'Photo.On.Delivery Acceptance Rate\s+([\d.]+%?)\s*\|\s*(Fantastic Plus|Fantastic|Great|Fair|Poor)', full_text, re.IGNORECASE)
+    if pod: data['pod'] = {'value': pod.group(1), 'tier': pod.group(2).strip()}
+
+    # Team and Fleet sub-metrics
+    tw = re.search(r'Tenured Workforce\s+([\d.]+%?)\s*\|\s*(Fantastic Plus|Fantastic|Great|Fair|Poor)', full_text, re.IGNORECASE)
+    if tw: data['tenured_workforce'] = {'value': tw.group(1), 'tier': tw.group(2).strip()}
+
+    fe = extract_metric(r'Fleet Execution\s+([\d.]+)\s*\|\s*(Fantastic Plus|Fantastic|Great|Fair|Poor)', full_text)
+    if fe: data['fleet_execution'] = fe
+
+    # Recommended Focus Areas
+    focus = re.findall(r'^\d+\.\s+(.+?)(?=\n|$)', full_text, re.MULTILINE)
+    data['focus_areas'] = [f for f in focus if len(f) > 5 and len(f) < 100][:3]
+
+    print(f"Scorecard parsed: Week {data.get('week')}, {data.get('overall_tier')}, score {data.get('overall_score')}")
     return data
 
 def parse_fleet_csv(content):
@@ -282,6 +395,7 @@ def handle_file(file_info):
         headers = {"Authorization": f"Bearer {SLACK_BOT_TOKEN}"}
         response = requests.get(file_url, headers=headers)
 
+        # Save photos from incident reports
         if file_info.get('mimetype', '').startswith('image/'):
             photo_data = {
                 'url': file_info.get('permalink', ''),
@@ -295,11 +409,24 @@ def handle_file(file_info):
             print(f"Photo saved: {photo_data['name']}")
             return
 
-        if 'driver' in filename and ('rating' in filename or 'report' in filename):
+        # Amazon DSP Scorecard PDF
+        if filename.endswith('.pdf') and ('scorecard' in filename or 'dspscorecard' in filename.replace(' ', '').lower()):
+            data = parse_scorecard_pdf(response.content)
+            # Store latest + history (52 weeks)
+            history = redis_get('scorecard_history') or []
+            history.insert(0, data)
+            history = history[:52]
+            redis_set('scorecard_history', history)
+            redis_set('scorecard_weekly_latest', data)
+            print(f"Scorecard saved: Week {data.get('week')}, {data.get('overall_tier')}")
+
+        # LMDmax Driver Rating Report
+        elif 'driver' in filename and ('rating' in filename or 'report' in filename):
             data = parse_driver_rating_report(response.content)
             redis_set('driver_ratings_latest', data)
             print(f"Driver ratings saved: {data['total_drivers']} drivers")
 
+        # Fleet roster from Amazon AFS
         elif filename.endswith('.xlsx') and ('vehicle' in filename or 'fleet' in filename or 'van' in filename):
             import openpyxl
             wb = openpyxl.load_workbook(io.BytesIO(response.content))
@@ -366,6 +493,12 @@ def slack_events():
                 existing = redis_get('incidents_all') or []
                 existing.append(parsed)
                 redis_set('incidents_all', existing)
+                # If it's a manager complaint, also store separately for People Management
+                if parsed.get('is_manager_complaint'):
+                    mgr_complaints = redis_get('manager_complaints_all') or []
+                    mgr_complaints.append(parsed)
+                    redis_set('manager_complaints_all', mgr_complaints)
+                    print(f"Manager complaint flagged and saved separately")
                 print(f"Incident saved: {parsed.get('crs_case', 'No case #')}")
             elif 'Write-Up Report' in text:
                 parsed = parse_writeup(text)
@@ -420,6 +553,11 @@ def clear_key(key):
     headers = {"Authorization": f"Bearer {UPSTASH_TOKEN}"}
     requests.get(f"{UPSTASH_URL}/del/{key}", headers=headers)
     return f'Cleared {key}'
+
+@app.route('/test-save', methods=['GET'])
+def test_save():
+    redis_set('test_key', {'message': 'hello', 'status': 'working'})
+    return 'Saved test data to Upstash'
 
 @app.route('/', methods=['GET'])
 def home():
