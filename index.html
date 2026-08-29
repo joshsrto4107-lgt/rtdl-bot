@@ -1285,19 +1285,106 @@
         <div style="font-size:12px; color:var(--gray); margin-bottom:20px;" id="score-modal-role"></div>
 
         <div style="display:flex; flex-direction:column; gap:16px;">
-          ${['Scorecard', 'Fleet Health', 'Task Completion', 'People Management'].map(metric => `
           <div>
-            <label class="label">${metric}</label>
+            <label class="label">Scorecard</label>
             <div style="display:flex; gap:8px; flex-wrap:wrap;">
-              ${['Poor', 'Fair', 'Good', 'Fantastic', 'Fantastic Plus'].map(tier => `
-                <button class="tier-btn" data-metric="${metric}" data-tier="${tier}" onclick="selectTier(this)"
+                <button class="tier-btn" data-metric="Scorecard" data-tier="Poor" onclick="selectTier(this)"
                   style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
-                  ${tier}
+                  Poor
                 </button>
-              `).join('')}
+                <button class="tier-btn" data-metric="Scorecard" data-tier="Fair" onclick="selectTier(this)"
+                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
+                  Fair
+                </button>
+                <button class="tier-btn" data-metric="Scorecard" data-tier="Good" onclick="selectTier(this)"
+                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
+                  Good
+                </button>
+                <button class="tier-btn" data-metric="Scorecard" data-tier="Fantastic" onclick="selectTier(this)"
+                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
+                  Fantastic
+                </button>
+                <button class="tier-btn" data-metric="Scorecard" data-tier="Fantastic Plus" onclick="selectTier(this)"
+                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
+                  Fantastic Plus
+                </button>
             </div>
           </div>
-          `).join('')}
+          <div>
+            <label class="label">Fleet Health</label>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button class="tier-btn" data-metric="Fleet Health" data-tier="Poor" onclick="selectTier(this)"
+                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
+                  Poor
+                </button>
+                <button class="tier-btn" data-metric="Fleet Health" data-tier="Fair" onclick="selectTier(this)"
+                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
+                  Fair
+                </button>
+                <button class="tier-btn" data-metric="Fleet Health" data-tier="Good" onclick="selectTier(this)"
+                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
+                  Good
+                </button>
+                <button class="tier-btn" data-metric="Fleet Health" data-tier="Fantastic" onclick="selectTier(this)"
+                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
+                  Fantastic
+                </button>
+                <button class="tier-btn" data-metric="Fleet Health" data-tier="Fantastic Plus" onclick="selectTier(this)"
+                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
+                  Fantastic Plus
+                </button>
+            </div>
+          </div>
+          <div>
+            <label class="label">Task Completion</label>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button class="tier-btn" data-metric="Task Completion" data-tier="Poor" onclick="selectTier(this)"
+                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
+                  Poor
+                </button>
+                <button class="tier-btn" data-metric="Task Completion" data-tier="Fair" onclick="selectTier(this)"
+                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
+                  Fair
+                </button>
+                <button class="tier-btn" data-metric="Task Completion" data-tier="Good" onclick="selectTier(this)"
+                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
+                  Good
+                </button>
+                <button class="tier-btn" data-metric="Task Completion" data-tier="Fantastic" onclick="selectTier(this)"
+                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
+                  Fantastic
+                </button>
+                <button class="tier-btn" data-metric="Task Completion" data-tier="Fantastic Plus" onclick="selectTier(this)"
+                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
+                  Fantastic Plus
+                </button>
+            </div>
+          </div>
+          <div>
+            <label class="label">People Management</label>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                <button class="tier-btn" data-metric="People Management" data-tier="Poor" onclick="selectTier(this)"
+                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
+                  Poor
+                </button>
+                <button class="tier-btn" data-metric="People Management" data-tier="Fair" onclick="selectTier(this)"
+                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
+                  Fair
+                </button>
+                <button class="tier-btn" data-metric="People Management" data-tier="Good" onclick="selectTier(this)"
+                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
+                  Good
+                </button>
+                <button class="tier-btn" data-metric="People Management" data-tier="Fantastic" onclick="selectTier(this)"
+                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
+                  Fantastic
+                </button>
+                <button class="tier-btn" data-metric="People Management" data-tier="Fantastic Plus" onclick="selectTier(this)"
+                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
+                  Fantastic Plus
+                </button>
+            </div>
+          </div>
         </div>
 
         <div class="form-group" style="margin-top:16px;">
