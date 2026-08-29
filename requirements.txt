@@ -4,3 +4,4 @@ slack-sdk
 gunicorn
 requests
 openpyxl
+pypdf
