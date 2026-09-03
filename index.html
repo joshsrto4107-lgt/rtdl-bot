@@ -1243,6 +1243,8 @@
       <button class="btn btn-primary" onclick="openModal('add-manager-modal')">+ Add Manager</button>
     </div>
 
+    <div id="mgmt-team-score-card"></div>
+
     <div id="managers-container">
       <div style="text-align:center; color:var(--gray); padding:40px; font-size:13px;">
         No managers added yet. Click "+ Add Manager" to get started.
@@ -1311,10 +1313,6 @@
                   style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
                   Fantastic
                 </button>
-                <button class="tier-btn" data-metric="Scorecard" data-tier="Fantastic Plus" onclick="selectTier(this)"
-                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
-                  Fantastic Plus
-                </button>
             </div>
           </div>
           <div>
@@ -1335,10 +1333,6 @@
                 <button class="tier-btn" data-metric="Fleet Health" data-tier="Fantastic" onclick="selectTier(this)"
                   style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
                   Fantastic
-                </button>
-                <button class="tier-btn" data-metric="Fleet Health" data-tier="Fantastic Plus" onclick="selectTier(this)"
-                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
-                  Fantastic Plus
                 </button>
             </div>
           </div>
@@ -1361,10 +1355,6 @@
                   style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
                   Fantastic
                 </button>
-                <button class="tier-btn" data-metric="Task Completion" data-tier="Fantastic Plus" onclick="selectTier(this)"
-                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
-                  Fantastic Plus
-                </button>
             </div>
           </div>
           <div>
@@ -1385,10 +1375,6 @@
                 <button class="tier-btn" data-metric="People Management" data-tier="Fantastic" onclick="selectTier(this)"
                   style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
                   Fantastic
-                </button>
-                <button class="tier-btn" data-metric="People Management" data-tier="Fantastic Plus" onclick="selectTier(this)"
-                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
-                  Fantastic Plus
                 </button>
             </div>
           </div>
@@ -3935,7 +3921,23 @@ function getCurrentQuarter() {
 
 function getOverallTier(scores) {
   const values = Object.values(scores).map(t => TIER_RANK[t] || 0);
+  // Category tiers cap at Fantastic (4) - Fantastic Plus is an overall-only bonus tier,
+  // earned only when every category hits Fantastic.
+  if (values.length > 0 && values.every(v => v === 4)) return 'Fantastic Plus';
   const avg = values.reduce((a, b) => a + b, 0) / values.length;
+  if (avg >= 3.5) return 'Fantastic';
+  if (avg >= 2.5) return 'Good';
+  if (avg >= 1.5) return 'Fair';
+  return 'Poor';
+}
+
+function getTeamOverallTier(managers) {
+  const latestOveralls = (managers || [])
+    .map(m => m.reviews && m.reviews.length > 0 ? m.reviews[m.reviews.length - 1].overall : null)
+    .filter(Boolean)
+    .map(t => TIER_RANK[t] || 0);
+  if (latestOveralls.length === 0) return null;
+  const avg = latestOveralls.reduce((a, b) => a + b, 0) / latestOveralls.length;
   if (avg >= 4.5) return 'Fantastic Plus';
   if (avg >= 3.5) return 'Fantastic';
   if (avg >= 2.5) return 'Good';
@@ -3950,9 +3952,40 @@ function deleteManager(id) {
   renderManagers();
 }
 
+function renderManagementTeamScore() {
+  const managers = state.managers || [];
+  const card = document.getElementById('mgmt-team-score-card');
+  if (!card) return;
+
+  const reviewedCount = managers.filter(m => m.reviews && m.reviews.length > 0).length;
+
+  if (managers.length === 0 || reviewedCount === 0) {
+    card.innerHTML = '';
+    return;
+  }
+
+  const teamTier = getTeamOverallTier(managers);
+  const c = getTierColor(teamTier);
+
+  card.innerHTML = `
+    <div class="card" style="margin-bottom:16px; border-color:${c.border};">
+      <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:12px;">
+        <div>
+          <div class="card-title" style="margin-bottom:2px;">🏆 Management Team Score</div>
+          <div style="font-size:11px; color:var(--gray);">Averaged across ${reviewedCount} reviewed manager${reviewedCount === 1 ? '' : 's'}${reviewedCount < managers.length ? ` (of ${managers.length} total)` : ''}</div>
+        </div>
+        <span style="padding:8px 18px; border-radius:20px; font-size:14px; font-weight:700; background:${c.bg}; border:1px solid ${c.border}; color:${c.color};">${teamTier}</span>
+      </div>
+      <div style="margin-top:12px;">${renderTierBar(teamTier, false)}</div>
+    </div>
+  `;
+}
+
 function renderManagers() {
   const managers = state.managers || [];
   const container = document.getElementById('managers-container');
+
+  renderManagementTeamScore();
 
   if (managers.length === 0) {
     container.innerHTML = '<div style="text-align:center; color:var(--gray); padding:40px; font-size:13px;">No managers added yet. Click "+ Add Manager" to get started.</div>';
