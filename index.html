@@ -565,6 +565,38 @@
   .mgr-metric-icon-name { font-size: 11px; color: var(--gray); text-transform: uppercase; letter-spacing: 0.7px; }
   .mgr-metric-tier-val { font-size: 12px; font-weight: 700; }
 
+  /* MANAGER SCORE TIER BUTTONS */
+  .tier-btn {
+    padding: 8px 14px;
+    border-radius: 6px;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--gray);
+    cursor: pointer;
+    font-size: 12px;
+    font-family: 'Inter', sans-serif;
+    transition: all 0.15s;
+  }
+  .tier-btn:hover:not(.selected) { border-color: rgba(255,255,255,0.35); color: var(--white); }
+  .tier-btn.selected { font-weight: 700; }
+
+  /* MANAGER CARD POLISH */
+  .mgr-avatar {
+    width: 48px; height: 48px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 15px; font-weight: 700; letter-spacing: 0.5px;
+    flex-shrink: 0;
+  }
+  .mgr-icon-btn {
+    cursor: pointer; opacity: 0.55; transition: opacity 0.15s;
+    font-size: 12px;
+  }
+  .mgr-icon-btn:hover { opacity: 1; }
+  .review-history-item {
+    transition: background 0.15s;
+  }
+  .review-history-item:hover { background: rgba(255,255,255,0.06) !important; }
+
   .metric-row {
     display: flex;
     align-items: center;
@@ -1240,7 +1272,7 @@
         <div class="section-title">Management Performance</div>
         <div class="section-sub">Quarterly reviews for your management team</div>
       </div>
-      <button class="btn btn-primary" onclick="openModal('add-manager-modal')">+ Add Manager</button>
+      <button class="btn btn-primary" onclick="openAddManagerModal()">+ Add Manager</button>
     </div>
 
     <div id="mgmt-team-score-card"></div>
@@ -1264,10 +1296,10 @@
       </div>
     </div>
 
-    <!-- Add Manager Modal -->
+    <!-- Add / Edit Manager Modal -->
     <div class="modal-overlay" id="add-manager-modal">
       <div class="modal">
-        <div style="font-size:18px; font-weight:700; margin-bottom:20px;">Add Manager</div>
+        <div style="font-size:18px; font-weight:700; margin-bottom:20px;" id="add-manager-modal-title">Add Manager</div>
         <div class="form-group">
           <label class="label">Full Name</label>
           <input class="input" id="mgr-name" placeholder="e.g. John Smith">
@@ -1282,7 +1314,7 @@
         </div>
         <div class="flex gap-8" style="justify-content:flex-end; margin-top:16px;">
           <button class="btn btn-ghost" onclick="closeModal('add-manager-modal')">Cancel</button>
-          <button class="btn btn-primary" onclick="addManager()">Add Manager</button>
+          <button class="btn btn-primary" onclick="addManager()" id="add-manager-save-btn">Add Manager</button>
         </div>
       </div>
     </div>
@@ -1297,20 +1329,16 @@
           <div>
             <label class="label">Scorecard</label>
             <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                <button class="tier-btn" data-metric="Scorecard" data-tier="Poor" onclick="selectTier(this)"
-                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
+                <button class="tier-btn" data-metric="Scorecard" data-tier="Poor" onclick="selectTier(this)">
                   Poor
                 </button>
-                <button class="tier-btn" data-metric="Scorecard" data-tier="Fair" onclick="selectTier(this)"
-                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
+                <button class="tier-btn" data-metric="Scorecard" data-tier="Fair" onclick="selectTier(this)">
                   Fair
                 </button>
-                <button class="tier-btn" data-metric="Scorecard" data-tier="Good" onclick="selectTier(this)"
-                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
+                <button class="tier-btn" data-metric="Scorecard" data-tier="Good" onclick="selectTier(this)">
                   Good
                 </button>
-                <button class="tier-btn" data-metric="Scorecard" data-tier="Fantastic" onclick="selectTier(this)"
-                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
+                <button class="tier-btn" data-metric="Scorecard" data-tier="Fantastic" onclick="selectTier(this)">
                   Fantastic
                 </button>
             </div>
@@ -1318,20 +1346,16 @@
           <div>
             <label class="label">Fleet Health</label>
             <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                <button class="tier-btn" data-metric="Fleet Health" data-tier="Poor" onclick="selectTier(this)"
-                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
+                <button class="tier-btn" data-metric="Fleet Health" data-tier="Poor" onclick="selectTier(this)">
                   Poor
                 </button>
-                <button class="tier-btn" data-metric="Fleet Health" data-tier="Fair" onclick="selectTier(this)"
-                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
+                <button class="tier-btn" data-metric="Fleet Health" data-tier="Fair" onclick="selectTier(this)">
                   Fair
                 </button>
-                <button class="tier-btn" data-metric="Fleet Health" data-tier="Good" onclick="selectTier(this)"
-                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
+                <button class="tier-btn" data-metric="Fleet Health" data-tier="Good" onclick="selectTier(this)">
                   Good
                 </button>
-                <button class="tier-btn" data-metric="Fleet Health" data-tier="Fantastic" onclick="selectTier(this)"
-                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
+                <button class="tier-btn" data-metric="Fleet Health" data-tier="Fantastic" onclick="selectTier(this)">
                   Fantastic
                 </button>
             </div>
@@ -1339,20 +1363,16 @@
           <div>
             <label class="label">Task Completion</label>
             <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                <button class="tier-btn" data-metric="Task Completion" data-tier="Poor" onclick="selectTier(this)"
-                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
+                <button class="tier-btn" data-metric="Task Completion" data-tier="Poor" onclick="selectTier(this)">
                   Poor
                 </button>
-                <button class="tier-btn" data-metric="Task Completion" data-tier="Fair" onclick="selectTier(this)"
-                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
+                <button class="tier-btn" data-metric="Task Completion" data-tier="Fair" onclick="selectTier(this)">
                   Fair
                 </button>
-                <button class="tier-btn" data-metric="Task Completion" data-tier="Good" onclick="selectTier(this)"
-                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
+                <button class="tier-btn" data-metric="Task Completion" data-tier="Good" onclick="selectTier(this)">
                   Good
                 </button>
-                <button class="tier-btn" data-metric="Task Completion" data-tier="Fantastic" onclick="selectTier(this)"
-                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
+                <button class="tier-btn" data-metric="Task Completion" data-tier="Fantastic" onclick="selectTier(this)">
                   Fantastic
                 </button>
             </div>
@@ -1360,20 +1380,16 @@
           <div>
             <label class="label">People Management</label>
             <div style="display:flex; gap:8px; flex-wrap:wrap;">
-                <button class="tier-btn" data-metric="People Management" data-tier="Poor" onclick="selectTier(this)"
-                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
+                <button class="tier-btn" data-metric="People Management" data-tier="Poor" onclick="selectTier(this)">
                   Poor
                 </button>
-                <button class="tier-btn" data-metric="People Management" data-tier="Fair" onclick="selectTier(this)"
-                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
+                <button class="tier-btn" data-metric="People Management" data-tier="Fair" onclick="selectTier(this)">
                   Fair
                 </button>
-                <button class="tier-btn" data-metric="People Management" data-tier="Good" onclick="selectTier(this)"
-                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
+                <button class="tier-btn" data-metric="People Management" data-tier="Good" onclick="selectTier(this)">
                   Good
                 </button>
-                <button class="tier-btn" data-metric="People Management" data-tier="Fantastic" onclick="selectTier(this)"
-                  style="padding:8px 14px; border-radius:6px; border:1px solid var(--border); background:transparent; color:var(--gray); cursor:pointer; font-size:12px; transition:all 0.2s;">
+                <button class="tier-btn" data-metric="People Management" data-tier="Fantastic" onclick="selectTier(this)">
                   Fantastic
                 </button>
             </div>
@@ -1714,28 +1730,6 @@ function renderScorecard() {
       <td class="font-mono ${e.safety > 0 ? '' : ''}" style="color:${e.safety > 0 ? 'var(--red)' : 'var(--green)'}">${e.safety}</td>
     </tr>`;
   }).join('');
-}
-
-// ═══════════════════════════════════════════════════
-// MANAGEMENT
-// ═══════════════════════════════════════════════════
-function addManager() {
-  const mgr = {
-    id: Date.now(),
-    name: document.getElementById('mgr-name').value,
-    role: document.getElementById('mgr-role').value,
-    start: document.getElementById('mgr-start').value,
-    scores: { scorecard: 0, fleet: 0, tasks: 0, people: 0 }
-  };
-  if (!mgr.name) { alert('Please enter a name.'); return; }
-  state.managers.push(mgr);
-  saveState();
-  closeModal('add-manager-modal');
-  renderManagement();
-}
-
-function renderManagement() {
-  // Management rendering is handled by renderManagers() — this is a no-op stub
 }
 
 // ═══════════════════════════════════════════════════
@@ -3819,20 +3813,54 @@ async function renderManagerComplaints() {
   }
 }
 
+let editingManagerId = null;
+
+function openAddManagerModal() {
+  editingManagerId = null;
+  document.getElementById('mgr-name').value = '';
+  document.getElementById('mgr-role').value = '';
+  document.getElementById('mgr-start').value = '';
+  document.getElementById('add-manager-modal-title').textContent = 'Add Manager';
+  document.getElementById('add-manager-save-btn').textContent = 'Add Manager';
+  openModal('add-manager-modal');
+}
+
+function editManager(id) {
+  const manager = state.managers.find(m => m.id === id);
+  if (!manager) return;
+  editingManagerId = id;
+  document.getElementById('mgr-name').value = manager.name;
+  document.getElementById('mgr-role').value = manager.role;
+  document.getElementById('mgr-start').value = manager.start || '';
+  document.getElementById('add-manager-modal-title').textContent = 'Edit Manager';
+  document.getElementById('add-manager-save-btn').textContent = 'Save Changes';
+  openModal('add-manager-modal');
+}
+
 function addManager() {
   const name = document.getElementById('mgr-name').value.trim();
   const role = document.getElementById('mgr-role').value.trim();
   const start = document.getElementById('mgr-start').value;
   if (!name || !role) { alert('Please enter a name and role.'); return; }
 
-  if (!state.managers) state.managers = [];
-  state.managers.push({
-    id: Date.now(),
-    name,
-    role,
-    start,
-    reviews: []
-  });
+  if (editingManagerId) {
+    const manager = state.managers.find(m => m.id === editingManagerId);
+    if (manager) {
+      manager.name = name;
+      manager.role = role;
+      manager.start = start;
+    }
+    editingManagerId = null;
+  } else {
+    if (!state.managers) state.managers = [];
+    state.managers.push({
+      id: Date.now(),
+      name,
+      role,
+      start,
+      reviews: []
+    });
+  }
 
   saveState();
   closeModal('add-manager-modal');
@@ -3853,9 +3881,10 @@ function openScoreModal(id) {
 
   // Reset all tier buttons
   document.querySelectorAll('.tier-btn').forEach(btn => {
-    btn.style.background = 'transparent';
-    btn.style.borderColor = 'var(--border)';
-    btn.style.color = 'var(--gray)';
+    btn.classList.remove('selected');
+    btn.style.background = '';
+    btn.style.borderColor = '';
+    btn.style.color = '';
   });
 
   openModal('score-manager-modal');
@@ -3868,12 +3897,14 @@ function selectTier(btn) {
 
   // Reset all buttons for this metric
   document.querySelectorAll(`.tier-btn[data-metric="${metric}"]`).forEach(b => {
-    b.style.background = 'transparent';
-    b.style.borderColor = 'var(--border)';
-    b.style.color = 'var(--gray)';
+    b.classList.remove('selected');
+    b.style.background = '';
+    b.style.borderColor = '';
+    b.style.color = '';
   });
 
   // Highlight selected
+  btn.classList.add('selected');
   btn.style.background = colors.bg;
   btn.style.borderColor = colors.border;
   btn.style.color = colors.color;
@@ -3887,7 +3918,7 @@ function saveManagerScore() {
   const scores = {};
 
   metrics.forEach(metric => {
-    const selected = document.querySelector(`.tier-btn[data-metric="${metric}"][style*="rgba"]`);
+    const selected = document.querySelector(`.tier-btn[data-metric="${metric}"].selected`);
     if (selected) scores[metric] = selected.getAttribute('data-tier');
   });
 
@@ -3946,8 +3977,17 @@ function getTeamOverallTier(managers) {
 }
 
 function deleteManager(id) {
-  if (!confirm('Remove this manager from tracking?')) return;
+  if (!confirm('Remove this manager from tracking? This deletes their full review history.')) return;
   state.managers = state.managers.filter(m => m.id !== id);
+  saveState();
+  renderManagers();
+}
+
+function deleteReview(managerId, reviewIndex) {
+  if (!confirm('Delete this review? This cannot be undone.')) return;
+  const manager = state.managers.find(m => m.id === managerId);
+  if (!manager || !manager.reviews) return;
+  manager.reviews.splice(reviewIndex, 1);
   saveState();
   renderManagers();
 }
@@ -3996,15 +4036,16 @@ function renderManagers() {
     const latestReview = mgr.reviews && mgr.reviews.length > 0 ? mgr.reviews[mgr.reviews.length - 1] : null;
     const overall = latestReview ? latestReview.overall : null;
     const colors = overall ? getTierColor(overall) : { bg: 'rgba(255,255,255,0.04)', border: 'var(--border)', color: 'var(--gray)' };
+    const initials = mgr.name.trim().split(/\s+/).filter(Boolean).map(w => w[0]).slice(0, 2).join('').toUpperCase() || '?';
 
     const metrics = ['Scorecard', 'Fleet Health', 'Task Completion', 'People Management'];
     const metricIcons = { 'Scorecard': '📊', 'Fleet Health': '🚐', 'Task Completion': '✅', 'People Management': '👥' };
 
     return `
       <div class="card" style="margin-bottom:16px;">
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px;">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; flex-wrap:wrap; gap:12px;">
           <div style="display:flex; align-items:center; gap:12px;">
-            <div style="width:48px; height:48px; border-radius:50%; background:${colors.bg}; border:2px solid ${colors.border}; display:flex; align-items:center; justify-content:center; font-size:20px;">👤</div>
+            <div class="mgr-avatar" style="background:${colors.bg}; border:2px solid ${colors.border}; color:${colors.color};">${initials}</div>
             <div>
               <div style="font-size:16px; font-weight:700; color:var(--white);">${mgr.name}</div>
               <div style="font-size:12px; color:var(--gray);">${mgr.role}${mgr.start ? ' · Since ' + new Date(mgr.start).toLocaleDateString('en-US', {month:'short', year:'numeric'}) : ''}</div>
@@ -4013,6 +4054,7 @@ function renderManagers() {
           <div style="display:flex; align-items:center; gap:8px;">
             ${overall ? `<span style="padding:6px 14px; border-radius:20px; font-size:12px; font-weight:600; background:${colors.bg}; border:1px solid ${colors.border}; color:${colors.color};">${overall}</span>` : '<span class="pill" style="color:var(--gray);">No Review Yet</span>'}
             <button class="btn btn-primary" style="font-size:12px; padding:8px 14px;" onclick="openScoreModal(${mgr.id})">+ Review</button>
+            <button class="btn btn-ghost" style="font-size:12px; padding:8px 14px;" onclick="editManager(${mgr.id})" title="Edit name, role, or start date">✎ Edit</button>
             <button class="btn btn-ghost" style="font-size:12px; padding:8px 14px; color:var(--red);" onclick="deleteManager(${mgr.id})">Remove</button>
           </div>
         </div>
@@ -4032,7 +4074,10 @@ function renderManagers() {
             }).join('')}
           </div>
           ${latestReview.notes ? `<div style="font-size:12px; color:var(--gray); font-style:italic; margin-top:8px;">"${latestReview.notes}"</div>` : ''}
-          <div style="font-size:11px; color:var(--gray); margin-top:8px;">Last reviewed: ${latestReview.date} · ${latestReview.quarter}</div>
+          <div style="font-size:11px; color:var(--gray); margin-top:8px; display:flex; align-items:center; justify-content:space-between;">
+            <span>Last reviewed: ${latestReview.date} · ${latestReview.quarter}</span>
+            <span class="mgr-icon-btn" style="color:var(--red);" onclick="deleteReview(${mgr.id}, ${mgr.reviews.length - 1})" title="Delete this review">🗑 delete</span>
+          </div>
         ` : `
           <div style="text-align:center; padding:20px; color:var(--gray); font-size:13px;">
             No reviews yet. Click "+ Review" to score this manager.
@@ -4043,11 +4088,15 @@ function renderManagers() {
           <div style="margin-top:16px; padding-top:16px; border-top:1px solid var(--border);">
             <div style="font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:0.8px; color:var(--gray); margin-bottom:8px;">Review History</div>
             <div style="display:flex; flex-direction:column; gap:6px;">
-              ${mgr.reviews.slice().reverse().slice(1).map(r => {
+              ${mgr.reviews.slice().reverse().slice(1).map((r, i) => {
                 const c = getTierColor(r.overall);
-                return `<div style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:rgba(255,255,255,0.03); border-radius:6px;">
+                const originalIndex = mgr.reviews.length - 2 - i;
+                return `<div class="review-history-item" style="display:flex; align-items:center; justify-content:space-between; padding:8px 12px; background:rgba(255,255,255,0.03); border-radius:6px;">
                   <span style="font-size:12px; color:var(--gray);">${r.quarter} · ${r.date}</span>
-                  <span style="font-size:12px; font-weight:600; color:${c.color};">${r.overall}</span>
+                  <div style="display:flex; align-items:center; gap:12px;">
+                    <span style="font-size:12px; font-weight:600; color:${c.color};">${r.overall}</span>
+                    <span class="mgr-icon-btn" style="color:var(--red);" onclick="deleteReview(${mgr.id}, ${originalIndex})" title="Delete this review">✕</span>
+                  </div>
                 </div>`;
               }).join('')}
             </div>
