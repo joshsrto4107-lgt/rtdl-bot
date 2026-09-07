@@ -182,6 +182,31 @@ def parse_incident_report(text):
 
     return data
 
+def parse_payroll_correction(text):
+    data = {'raw': text, 'date': text.split('\n')[0], 'status': 'Pending', 'source': 'Slack',
+            'id': str(int(__import__('time').time() * 1000))}
+    normalized = text
+    field_labels = ['Last Name:', 'First Name:', 'Date:', 'Category:', 'Detail:', 'Status:', 'Notes:']
+    for label in field_labels:
+        normalized = normalized.replace(label, '\n' + label)
+    lines = [l.strip() for l in normalized.split('\n') if l.strip()]
+    for line in lines:
+        if line.startswith('Last Name:'):
+            data['last'] = line.replace('Last Name:', '').strip()
+        elif line.startswith('First Name:'):
+            data['first'] = line.replace('First Name:', '').strip()
+        elif line.startswith('Date:'):
+            data['correction_date'] = line.replace('Date:', '').strip()
+        elif line.startswith('Category:'):
+            data['category'] = line.replace('Category:', '').strip()
+        elif line.startswith('Detail:'):
+            data['detail'] = line.replace('Detail:', '').strip()
+        elif line.startswith('Status:'):
+            data['status'] = line.replace('Status:', '').strip()
+        elif line.startswith('Notes:'):
+            data['notes'] = line.replace('Notes:', '').strip()
+    return data
+
 def parse_writeup(text):
     data = {'raw': text, 'date': text.split('\n')[0]}
     normalized = text
@@ -510,10 +535,11 @@ def slack_events():
                 redis_set('training_latest', {'raw': text, 'date': text.split('\n')[0]})
                 print(f"Training saved")
             elif 'Payroll Correction' in text:
+                parsed = parse_payroll_correction(text)
                 existing = redis_get('payroll_corrections_all') or []
-                existing.append({'raw': text, 'date': text.split('\n')[0]})
+                existing.append(parsed)
                 redis_set('payroll_corrections_all', existing)
-                print(f"Payroll correction saved")
+                print(f"Payroll correction saved: {parsed.get('last', 'Unknown')}")
             elif 'Expense Report' in text:
                 existing = redis_get('expenses_all') or []
                 existing.append({'raw': text, 'date': text.split('\n')[0]})
@@ -532,6 +558,35 @@ def slack_events():
                 print(f"File received: {file_info.get('name')}")
                 handle_file(file_info)
     return jsonify({'status': 'ok'})
+
+@app.route('/add/payroll_correction', methods=['POST'])
+def add_payroll_correction():
+    item = request.json or {}
+    item.setdefault('source', 'Manual')
+    item.setdefault('id', str(int(__import__('time').time() * 1000)))
+    existing = redis_get('payroll_corrections_all') or []
+    existing.append(item)
+    redis_set('payroll_corrections_all', existing)
+    return jsonify({'status': 'ok', 'id': item['id']})
+
+@app.route('/add/payroll_corrections_bulk', methods=['POST'])
+def add_payroll_corrections_bulk():
+    items = request.json or []
+    base = int(__import__('time').time() * 1000)
+    for i, item in enumerate(items):
+        item.setdefault('source', 'Upload')
+        item.setdefault('id', str(base + i))
+    existing = redis_get('payroll_corrections_all') or []
+    existing.extend(items)
+    redis_set('payroll_corrections_all', existing)
+    return jsonify({'status': 'ok', 'added': len(items)})
+
+@app.route('/delete/payroll_correction/<item_id>', methods=['POST', 'DELETE'])
+def delete_payroll_correction(item_id):
+    existing = redis_get('payroll_corrections_all') or []
+    filtered = [x for x in existing if str(x.get('id')) != str(item_id)]
+    redis_set('payroll_corrections_all', filtered)
+    return jsonify({'status': 'ok', 'remaining': len(filtered)})
 
 @app.route('/data/<key>', methods=['GET'])
 def get_data(key):
