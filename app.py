@@ -571,15 +571,41 @@ def add_payroll_correction():
 
 @app.route('/add/payroll_corrections_bulk', methods=['POST'])
 def add_payroll_corrections_bulk():
-    items = request.json or []
+    payload = request.json or {}
+    items = payload.get('items', payload if isinstance(payload, list) else [])
+    batch_id = payload.get('batchId') or ('batch-' + str(int(__import__('time').time() * 1000)))
+    filename = payload.get('filename', 'uploaded file')
     base = int(__import__('time').time() * 1000)
     for i, item in enumerate(items):
         item.setdefault('source', 'Upload')
         item.setdefault('id', str(base + i))
+        item['batch_id'] = batch_id
     existing = redis_get('payroll_corrections_all') or []
     existing.extend(items)
     redis_set('payroll_corrections_all', existing)
-    return jsonify({'status': 'ok', 'added': len(items)})
+
+    batches = redis_get('payroll_upload_batches') or []
+    batches.append({
+        'batch_id': batch_id,
+        'filename': filename,
+        'count': len(items),
+        'uploaded_at': __import__('datetime').datetime.utcnow().isoformat()
+    })
+    redis_set('payroll_upload_batches', batches)
+
+    return jsonify({'status': 'ok', 'added': len(items), 'batchId': batch_id})
+
+@app.route('/delete/payroll_corrections_batch/<batch_id>', methods=['POST', 'DELETE'])
+def delete_payroll_corrections_batch(batch_id):
+    existing = redis_get('payroll_corrections_all') or []
+    filtered = [x for x in existing if str(x.get('batch_id')) != str(batch_id)]
+    redis_set('payroll_corrections_all', filtered)
+
+    batches = redis_get('payroll_upload_batches') or []
+    batches = [b for b in batches if str(b.get('batch_id')) != str(batch_id)]
+    redis_set('payroll_upload_batches', batches)
+
+    return jsonify({'status': 'ok', 'removed': len(existing) - len(filtered)})
 
 @app.route('/delete/payroll_correction/<item_id>', methods=['POST', 'DELETE'])
 def delete_payroll_correction(item_id):
