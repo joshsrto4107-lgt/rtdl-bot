@@ -588,6 +588,20 @@ def delete_payroll_correction(item_id):
     redis_set('payroll_corrections_all', filtered)
     return jsonify({'status': 'ok', 'remaining': len(filtered)})
 
+@app.route('/update/payroll_correction/<item_id>', methods=['POST'])
+def update_payroll_correction(item_id):
+    updates = request.json or {}
+    existing = redis_get('payroll_corrections_all') or []
+    found = False
+    for x in existing:
+        if str(x.get('id')) == str(item_id):
+            x.update(updates)
+            x['reviewed'] = True
+            found = True
+            break
+    redis_set('payroll_corrections_all', existing)
+    return jsonify({'status': 'ok' if found else 'not_found'})
+
 @app.route('/data/<key>', methods=['GET'])
 def get_data(key):
     headers = {"Authorization": f"Bearer {UPSTASH_TOKEN}"}
