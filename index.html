@@ -1475,6 +1475,12 @@
       </table>
     </div>
 
+    <!-- Uploaded Files -->
+    <div class="card mb-20" id="upload-batches-card" style="display:none;">
+      <div class="card-title">📁 Uploaded Files</div>
+      <div id="upload-batches-list"></div>
+    </div>
+
     <!-- PTO -->
     <div class="card">
       <div class="flex items-center justify-between mb-16">
@@ -2138,6 +2144,49 @@ async function deleteCorrection(id) {
 }
 
 // ═══════════════════════════════════════════════════
+// UPLOAD BATCH TRACKING
+// ═══════════════════════════════════════════════════
+async function renderUploadBatches() {
+  const card = document.getElementById('upload-batches-card');
+  const list = document.getElementById('upload-batches-list');
+  let batches = [];
+  try {
+    const res = await fetch(`${BOT_URL}/data/payroll_upload_batches`);
+    const json = await res.json();
+    batches = json.result || [];
+  } catch(e) {
+    batches = [];
+  }
+
+  if (batches.length === 0) {
+    card.style.display = 'none';
+    return;
+  }
+  card.style.display = 'block';
+  list.innerHTML = batches.slice().reverse().map(b => {
+    const when = b.uploaded_at ? new Date(b.uploaded_at).toLocaleString('en-US', { month:'short', day:'numeric', hour:'numeric', minute:'2-digit' }) : '';
+    return `<div class="priority-item">
+      <div>
+        <strong>${b.filename || 'uploaded file'}</strong>
+        <div class="text-xs text-gray">${b.count} correction${b.count === 1 ? '' : 's'} — ${when}</div>
+      </div>
+      <div style="margin-left:auto;">
+        <button class="btn btn-ghost" style="font-size:11px; padding:4px 10px; color:var(--red);" onclick="undoUploadBatch('${b.batch_id}')">Remove This Upload</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function undoUploadBatch(batchId) {
+  if (!confirm('Remove every correction from this upload? This can\'t be undone.')) return;
+  try {
+    await fetch(`${BOT_URL}/delete/payroll_corrections_batch/${batchId}`, { method: 'POST' });
+  } catch(e) {}
+  await fetchPayrollCorrections();
+  await renderUploadBatches();
+}
+
+// ═══════════════════════════════════════════════════
 // REVIEW QUEUE
 // ═══════════════════════════════════════════════════
 let reviewQueue = [];
@@ -2572,6 +2621,7 @@ function renderAll() {
   renderAmazonScorecard();
   renderManagerComplaints();
   fetchPayrollCorrections();
+  renderUploadBatches();
 }
 
 
@@ -2902,18 +2952,23 @@ function handlePayrollUpload(event) {
       }
 
       status.textContent = `Saving ${parsed.length} corrections...`;
+      const batchId = 'batch-' + Date.now();
+      let saveResult;
       try {
-        await fetch(`${BOT_URL}/add/payroll_corrections_bulk`, {
+        const saveRes = await fetch(`${BOT_URL}/add/payroll_corrections_bulk`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(parsed)
+          body: JSON.stringify({ batchId, filename: file.name, items: parsed })
         });
+        saveResult = await saveRes.json();
       } catch(saveErr) {
         status.textContent = '⚠️ Parsed the file but could not save to shared storage. Check your connection and try again.';
         return;
       }
       await fetchPayrollCorrections();
-      status.textContent = `✅ Loaded ${parsed.length} correction${parsed.length === 1 ? '' : 's'} from ${file.name}. Review statuses below — the parser guesses from the notes, so double-check before payroll runs.`;
+      await renderUploadBatches();
+      const savedBatchId = (saveResult && saveResult.batchId) || batchId;
+      status.innerHTML = `✅ Loaded ${parsed.length} correction${parsed.length === 1 ? '' : 's'} from ${file.name}. Review statuses below — the parser guesses from the notes, so double-check before payroll runs. <button class="btn btn-ghost" style="font-size:11px; padding:3px 10px; margin-left:6px;" onclick="undoUploadBatch('${savedBatchId}')">Undo this upload</button>`;
     } catch (err) {
       status.textContent = '⚠️ Could not read that file. Make sure it\'s a .xlsx or .csv export of the review sheet.';
     }
