@@ -1408,6 +1408,124 @@
       </div>
     </div>
   </div>
+
+  <!-- ═══════════════════════════════════════════════════ -->
+  <!-- PAYROLL -->
+  <!-- ═══════════════════════════════════════════════════ -->
+  <div class="section" id="section-payroll">
+    <div class="section-header">
+      <div>
+        <div class="section-title">Payroll Corrections</div>
+        <div class="section-sub">Timecard review before each payroll run</div>
+      </div>
+      <div class="flex gap-8">
+        <input type="file" id="payroll-upload" accept=".xlsx,.xls,.csv" onchange="handlePayrollUpload(event)" style="display:none;">
+        <button class="btn btn-ghost" onclick="document.getElementById('payroll-upload').click()">📤 Upload File</button>
+        <button class="btn btn-primary" onclick="openModal('add-correction-modal')">+ Log Correction</button>
+      </div>
+    </div>
+    <div id="payroll-upload-status" class="text-xs text-gray mb-16" style="margin-top:-8px;"></div>
+
+    <!-- Summary Stats -->
+    <div class="grid-4" id="payroll-stats">
+      <div class="stat-card red">
+        <div class="stat-label">Needs Action</div>
+        <div class="stat-value red" id="pay-needs-action">0</div>
+        <div class="stat-sub">Reach out / fix before run</div>
+      </div>
+      <div class="stat-card green">
+        <div class="stat-label">Good / No Action</div>
+        <div class="stat-value green" id="pay-good">0</div>
+        <div class="stat-sub">Verified correct</div>
+      </div>
+      <div class="stat-card blue">
+        <div class="stat-label">Total Logged</div>
+        <div class="stat-value blue" id="pay-total">0</div>
+        <div class="stat-sub">This cycle</div>
+      </div>
+      <div class="stat-card yellow">
+        <div class="stat-label">PTO Pending</div>
+        <div class="stat-value yellow" id="pending-pto">0</div>
+        <div class="stat-sub">Awaiting decision</div>
+      </div>
+    </div>
+
+    <!-- Corrections Table -->
+    <div class="card mb-20">
+      <div class="card-title">💰 Timecard Corrections</div>
+      <table class="table">
+        <thead>
+          <tr>
+            <th>Last Name</th>
+            <th>First Name</th>
+            <th>Date</th>
+            <th>Category</th>
+            <th>Detail</th>
+            <th>Status</th>
+            <th>Notes</th>
+            <th>Source</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="corrections-table">
+          <tr><td colspan="9" style="text-align:center; color: var(--gray); padding: 24px;">No corrections logged yet.</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- PTO -->
+    <div class="card">
+      <div class="flex items-center justify-between mb-16">
+        <div class="card-title" style="margin-bottom:0;">🏖️ PTO Requests</div>
+        <button class="btn btn-ghost" style="font-size:12px; padding:6px 14px;" onclick="openModal('pto-modal')">+ New Request</button>
+      </div>
+      <div id="pto-list">
+        <div style="text-align:center; color: var(--gray); padding: 24px; font-size:13px;">No PTO requests.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Add Correction Modal -->
+  <div class="modal-overlay" id="add-correction-modal">
+    <div class="modal">
+      <div class="modal-title">💰 Log Payroll Correction</div>
+      <div class="grid-2">
+        <div class="form-group"><label class="label">Last Name</label><input class="input" id="corr-last" placeholder="Last name"></div>
+        <div class="form-group"><label class="label">First Name</label><input class="input" id="corr-first" placeholder="First name"></div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group"><label class="label">Date</label><input class="input" type="date" id="corr-date"></div>
+        <div class="form-group">
+          <label class="label">Category</label>
+          <select class="input" id="corr-category">
+            <option value="Incorrect Punch">Incorrect Punch on Timecard</option>
+            <option value="Training Punch">Training Day — Added/Missing Punch</option>
+            <option value="No Flex Record">ADP Punch, No Flex Record</option>
+            <option value="Early Logout">ADP Logout Earlier Than Flex</option>
+            <option value="Missing Lunch">Missing Lunch Punch</option>
+            <option value="Short/Long Lunch">Short or Long Lunch</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group"><label class="label">Detail</label><input class="input" id="corr-detail" placeholder="e.g. Missing In Punch on ADP at 10:52 PM"></div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="label">Status</label>
+          <select class="input" id="corr-status">
+            <option value="Reach Out">Reach Out</option>
+            <option value="Good">Good — No Action</option>
+            <option value="Resolved">Resolved</option>
+            <option value="Pending">Pending</option>
+          </select>
+        </div>
+        <div class="form-group"><label class="label">Notes</label><input class="input" id="corr-notes" placeholder="e.g. This is a mispunch, will have him delete it"></div>
+      </div>
+      <div class="flex gap-8" style="justify-content:flex-end; margin-top:8px;">
+        <button class="btn btn-ghost" onclick="closeModal('add-correction-modal')">Cancel</button>
+        <button class="btn btn-primary" onclick="addCorrection()">Save Correction</button>
+      </div>
+    </div>
+  </div>
 </div><!-- /main -->
 
 <!-- ═══════════════════════════════════════════════════ -->
@@ -1596,6 +1714,7 @@
   </div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // ═══════════════════════════════════════════════════
 // STATE
@@ -1842,9 +1961,59 @@ function addPTO() {
   renderPayroll();
 }
 
+let payrollCorrections = [];
+
+async function fetchPayrollCorrections() {
+  try {
+    const res = await fetch(`${BOT_URL}/data/payroll_corrections_all`);
+    const json = await res.json();
+    payrollCorrections = json.result || [];
+  } catch(e) {
+    payrollCorrections = [];
+  }
+  renderPayroll();
+}
+
 function renderPayroll() {
   const pending = state.pto.filter(p => p.decision === 'Pending').length;
   document.getElementById('pending-pto').textContent = pending;
+
+  const all = payrollCorrections.map(c => ({
+    id: c.id,
+    last: c.last || '—',
+    first: c.first || '',
+    date: c.date || c.correction_date || '',
+    category: c.category || '—',
+    detail: c.detail || '',
+    status: c.status || 'Pending',
+    notes: c.notes || '',
+    source: c.source || 'Slack'
+  }));
+
+  // Corrections stats
+  const needsAction = all.filter(c => c.status === 'Reach Out' || c.status === 'Pending').length;
+  const good = all.filter(c => c.status === 'Good' || c.status === 'Resolved').length;
+  document.getElementById('pay-needs-action').textContent = needsAction;
+  document.getElementById('pay-good').textContent = good;
+  document.getElementById('pay-total').textContent = all.length;
+
+  const ctbody = document.getElementById('corrections-table');
+  if (all.length === 0) {
+    ctbody.innerHTML = '<tr><td colspan="9" style="text-align:center; color: var(--gray); padding: 24px;">No corrections logged yet. They\'ll appear here automatically when posted to Slack, or add one manually.</td></tr>';
+  } else {
+    const sc = { 'Reach Out': 'red', 'Pending': 'yellow', 'Good': 'green', 'Resolved': 'green' };
+    ctbody.innerHTML = all.slice().sort((a,b) => new Date(b.date) - new Date(a.date)).map(c => `<tr>
+      <td class="font-bold">${c.last}</td>
+      <td>${c.first}</td>
+      <td class="font-mono text-xs">${c.date}</td>
+      <td class="text-xs">${c.category}</td>
+      <td class="text-gray text-xs">${c.detail || '—'}</td>
+      <td><span class="pill ${sc[c.status] || 'blue'}">${c.status}</span></td>
+      <td class="text-gray text-xs">${c.notes || '—'}</td>
+      <td><span class="pill ${c.source === 'Slack' ? 'blue' : c.source === 'Upload' ? 'green' : 'yellow'}" style="font-size:10px;">${c.source}</span></td>
+      <td><button class="btn btn-ghost" style="font-size:11px; padding:4px 10px; color:var(--red);" onclick="deleteCorrection('${c.id}')">✕</button></td>
+    </tr>`).join('');
+  }
 
   const list = document.getElementById('pto-list');
   if (state.pto.length === 0) {
@@ -1873,6 +2042,43 @@ function renderPayroll() {
 function updatePTO(id, decision) {
   const p = state.pto.find(x => x.id === id);
   if (p) { p.decision = decision; saveState(); renderPayroll(); }
+}
+
+async function addCorrection() {
+  const c = {
+    last: document.getElementById('corr-last').value,
+    first: document.getElementById('corr-first').value,
+    date: document.getElementById('corr-date').value,
+    category: document.getElementById('corr-category').value,
+    detail: document.getElementById('corr-detail').value,
+    status: document.getElementById('corr-status').value,
+    notes: document.getElementById('corr-notes').value,
+    source: 'Manual'
+  };
+  if (!c.last || !c.date) { alert('Please fill in last name and date.'); return; }
+  try {
+    await fetch(`${BOT_URL}/add/payroll_correction`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(c)
+    });
+  } catch(e) {
+    alert('Could not save to shared storage — check your connection and try again.');
+    return;
+  }
+  closeModal('add-correction-modal');
+  document.getElementById('corr-last').value = '';
+  document.getElementById('corr-first').value = '';
+  document.getElementById('corr-detail').value = '';
+  document.getElementById('corr-notes').value = '';
+  fetchPayrollCorrections();
+}
+
+async function deleteCorrection(id) {
+  try {
+    await fetch(`${BOT_URL}/delete/payroll_correction/${id}`, { method: 'POST' });
+  } catch(e) {}
+  fetchPayrollCorrections();
 }
 
 // ═══════════════════════════════════════════════════
@@ -2182,6 +2388,7 @@ function renderAll() {
   // Async data-driven renders
   renderAmazonScorecard();
   renderManagerComplaints();
+  fetchPayrollCorrections();
 }
 
 
@@ -2410,6 +2617,129 @@ function handleFleetUpload(event) {
     reader.readAsText(file);
   } else {
     status.textContent = '⚠️ Please use CSV format for now. Export your Excel as CSV and re-upload.';
+  }
+}
+
+// ═══════════════════════════════════════════════════
+// PAYROLL CORRECTIONS FILE UPLOAD (.xlsx / .csv)
+// ═══════════════════════════════════════════════════
+function classifyCorrectionCategory(sectionTitle) {
+  const t = sectionTitle.toLowerCase();
+  if (t.includes('incorrect punch')) return 'Incorrect Punch';
+  if (t.includes('training')) return 'Training Punch';
+  if (t.includes('flex') && (t.includes('no ') || t.includes('no corresponding') || t.includes('deliveries'))) return 'No Flex Record';
+  if (t.includes('earlier')) return 'Early Logout';
+  if (t.includes('missing lunch')) return 'Missing Lunch';
+  if (t.includes('short') && t.includes('lunch')) return 'Short/Long Lunch';
+  return 'Other';
+}
+
+function classifyCorrectionStatus(cellsText) {
+  const t = cellsText.join(' ').toLowerCase();
+  if (t.includes('good')) return 'Good';
+  if (t.includes('reach out')) return 'Reach Out';
+  if (t.includes('fine') || t.includes('leave')) return 'Good';
+  if (t.includes('resolved') || t.includes('fix')) return 'Resolved';
+  return 'Pending';
+}
+
+function formatCell(v) {
+  if (v instanceof Date) return v.toLocaleDateString('en-US');
+  return v === undefined || v === null ? '' : String(v).trim();
+}
+
+function handlePayrollUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const status = document.getElementById('payroll-upload-status');
+  status.textContent = 'Reading file...';
+
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    try {
+      let rows;
+      if (file.name.toLowerCase().endsWith('.csv')) {
+        rows = e.target.result.split('\n').map(l => l.split(',').map(c => c.trim().replace(/^"|"$/g, '')));
+      } else {
+        const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+        const sheet = wb.Sheets[wb.SheetNames[0]];
+        rows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '', raw: false, dateNF: 'm/d/yyyy' });
+      }
+
+      const parsed = [];
+      let currentCategory = 'Other';
+      let nameOrder = 'last-first'; // or 'first-last'
+
+      for (let i = 0; i < rows.length; i++) {
+        const row = (rows[i] || []).map(formatCell);
+        const nonEmpty = row.filter(c => c !== '');
+
+        if (nonEmpty.length === 0) continue; // skip blank rows
+
+        // Section title row: only first cell filled, and it's a long descriptive sentence
+        if (nonEmpty.length === 1 && row[0].length > 25) {
+          currentCategory = classifyCorrectionCategory(row[0]);
+          continue;
+        }
+
+        // Header row: contains "Name" and "Date" markers, not actual data
+        const rowLower = row.map(c => c.toLowerCase());
+        if (rowLower.some(c => c.includes('name')) && rowLower.some(c => c.includes('date'))) {
+          nameOrder = rowLower[0].includes('first') ? 'first-last' : 'last-first';
+          continue;
+        }
+
+        // Data row: needs at least 2 non-empty cells to be usable (a name + something else)
+        if (nonEmpty.length < 2) continue;
+
+        const first = nameOrder === 'first-last' ? row[0] : row[1];
+        const last = nameOrder === 'first-last' ? row[1] : row[0];
+        if (!last && !first) continue;
+
+        const rest = row.slice(2).filter(c => c !== '');
+        const dateVal = rest.length > 0 ? rest[0] : '';
+        const detailParts = rest.slice(1);
+
+        parsed.push({
+          id: Date.now() + i,
+          last: last || '—',
+          first: first || '',
+          date: dateVal,
+          category: currentCategory,
+          detail: detailParts.join(' | '),
+          status: classifyCorrectionStatus(detailParts),
+          notes: detailParts.length > 0 ? detailParts[detailParts.length - 1] : '',
+          source: 'Upload'
+        });
+      }
+
+      if (parsed.length === 0) {
+        status.textContent = '⚠️ No correction rows found. Check the file matches the expected review sheet format.';
+        return;
+      }
+
+      status.textContent = `Saving ${parsed.length} corrections...`;
+      try {
+        await fetch(`${BOT_URL}/add/payroll_corrections_bulk`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(parsed)
+        });
+      } catch(saveErr) {
+        status.textContent = '⚠️ Parsed the file but could not save to shared storage. Check your connection and try again.';
+        return;
+      }
+      await fetchPayrollCorrections();
+      status.textContent = `✅ Loaded ${parsed.length} correction${parsed.length === 1 ? '' : 's'} from ${file.name}. Review statuses below — the parser guesses from the notes, so double-check before payroll runs.`;
+    } catch (err) {
+      status.textContent = '⚠️ Could not read that file. Make sure it\'s a .xlsx or .csv export of the review sheet.';
+    }
+  };
+
+  if (file.name.toLowerCase().endsWith('.csv')) {
+    reader.readAsText(file);
+  } else {
+    reader.readAsArrayBuffer(file);
   }
 }
 
