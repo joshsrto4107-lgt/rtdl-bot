@@ -1420,7 +1420,9 @@
       </div>
       <div class="flex gap-8">
         <input type="file" id="payroll-upload" accept=".xlsx,.xls,.csv" onchange="handlePayrollUpload(event)" style="display:none;">
+        <button class="btn btn-ghost" onclick="exportPayrollExcel()">⬇ Export Excel</button>
         <button class="btn btn-ghost" onclick="document.getElementById('payroll-upload').click()">📤 Upload File</button>
+        <button class="btn btn-primary" onclick="openReviewQueue()">▶ Review Queue</button>
         <button class="btn btn-primary" onclick="openModal('add-correction-modal')">+ Log Correction</button>
       </div>
     </div>
@@ -1523,6 +1525,60 @@
       <div class="flex gap-8" style="justify-content:flex-end; margin-top:8px;">
         <button class="btn btn-ghost" onclick="closeModal('add-correction-modal')">Cancel</button>
         <button class="btn btn-primary" onclick="addCorrection()">Save Correction</button>
+      </div>
+    </div>
+  </div>
+  <!-- Review Queue Modal -->
+  <div class="modal-overlay" id="review-queue-modal">
+    <div class="modal" style="width:600px; max-width:95vw;">
+      <div class="flex items-center justify-between mb-16">
+        <div class="modal-title" style="margin-bottom:0;">📋 Review Queue</div>
+        <span class="text-xs text-gray" id="review-progress">0 of 0</span>
+      </div>
+
+      <div id="review-empty" style="display:none; text-align:center; padding:32px; color:var(--gray);">
+        🎉 All caught up — nothing left needing a decision.
+      </div>
+
+      <div id="review-body">
+        <div class="card mb-16" style="background:rgba(255,255,255,0.03);">
+          <div class="flex items-center justify-between mb-8">
+            <span style="font-size:16px; font-weight:700;" id="review-name"></span>
+            <span class="pill blue" id="review-category"></span>
+          </div>
+          <div class="text-xs text-gray mb-4" id="review-date"></div>
+          <div class="text-sm" id="review-detail"></div>
+        </div>
+
+        <div class="form-group">
+          <label class="label">Suggested Message to Driver</label>
+          <textarea class="input" id="review-message" rows="4"></textarea>
+          <button class="btn btn-ghost" style="font-size:11px; padding:6px 12px; margin-top:6px;" onclick="copyReviewMessage()">📋 Copy Message</button>
+        </div>
+
+        <div class="form-group">
+          <label class="label">Status</label>
+          <div class="flex gap-8">
+            <button class="btn btn-ghost" style="color:var(--green);" onclick="setReviewStatus('Good')">✓ Good</button>
+            <button class="btn btn-ghost" style="color:var(--red);" onclick="setReviewStatus('Reach Out')">📣 Reach Out</button>
+            <button class="btn btn-ghost" style="color:var(--green);" onclick="setReviewStatus('Resolved')">✔ Resolved</button>
+            <button class="btn btn-ghost" style="color:var(--yellow);" onclick="setReviewStatus('Pending')">… Pending</button>
+          </div>
+          <div class="text-xs text-gray" style="margin-top:6px;">Current: <span id="review-current-status" class="font-bold"></span></div>
+        </div>
+
+        <div class="form-group">
+          <label class="label">Your Note</label>
+          <textarea class="input" id="review-notes" rows="2" placeholder="e.g. This is a mispunch, will have him delete it"></textarea>
+        </div>
+      </div>
+
+      <div class="flex gap-8" style="justify-content:space-between; margin-top:8px;">
+        <button class="btn btn-ghost" onclick="closeModal('review-queue-modal')">Close</button>
+        <div class="flex gap-8">
+          <button class="btn btn-ghost" id="review-skip-btn" onclick="reviewSkip()">Skip</button>
+          <button class="btn btn-primary" id="review-save-btn" onclick="reviewSaveNext()">Save & Next →</button>
+        </div>
       </div>
     </div>
   </div>
@@ -2079,6 +2135,133 @@ async function deleteCorrection(id) {
     await fetch(`${BOT_URL}/delete/payroll_correction/${id}`, { method: 'POST' });
   } catch(e) {}
   fetchPayrollCorrections();
+}
+
+// ═══════════════════════════════════════════════════
+// REVIEW QUEUE
+// ═══════════════════════════════════════════════════
+let reviewQueue = [];
+let reviewIndex = 0;
+
+function generateCorrectionMessage(c) {
+  const first = c.first || 'there';
+  const date = c.date || 'that day';
+  switch (c.category) {
+    case 'Incorrect Punch':
+      return `Hey ${first}, ADP shows a punch on ${date} that looks like a mispunch (${c.detail || 'the flagged punch'}). Can you log into ADP and delete that entry, or let me know if it's correct?`;
+    case 'Missing Lunch':
+      return `Hey ${first}, your ADP timecard for ${date} is missing a lunch punch. Can you log into ADP and add your lunch out/in for that day, or let me know if you didn't actually get a lunch break so I can fix it on my end?`;
+    case 'No Flex Record':
+      return `Hey ${first}, ADP shows you clocked in (${c.detail || 'see punch times'}) on ${date}, but there's no matching record in Flex. Can you confirm what you were doing that day so I can log it correctly?`;
+    case 'Early Logout':
+      return `Hey ${first}, your ADP logout on ${date} is earlier than your Flex logout time (${c.detail || 'see times'}). Can you confirm which time is correct?`;
+    case 'Training Punch':
+      if ((c.detail || '').toLowerCase().includes('missing day')) {
+        return `Hey ${first}, I don't see a clock in or clock out on ADP for ${date}. Can you log in and add both, or send me your actual start/end times so I can enter it for you?`;
+      }
+      return `Hey ${first}, can you confirm your hours worked on ${date}? ADP shows ${c.detail || 'a discrepancy'} and I want to make sure it's right before payroll runs.`;
+    case 'Short/Long Lunch':
+      return `(No message needed — this is usually a coaching conversation, not a payroll fix. ${c.detail ? 'Lunch was ' + c.detail + '.' : ''})`;
+    default:
+      return `Hey ${first}, can you help me confirm your hours for ${date}? ${c.detail || ''}`.trim();
+  }
+}
+
+function openReviewQueue() {
+  reviewQueue = payrollCorrections.filter(c => !c.reviewed && c.status !== 'Good' && c.status !== 'Resolved');
+  reviewIndex = 0;
+  openModal('review-queue-modal');
+  renderReviewItem();
+}
+
+function renderReviewItem() {
+  const total = reviewQueue.length;
+  document.getElementById('review-progress').textContent = total === 0 ? '0 of 0' : `${reviewIndex + 1} of ${total}`;
+
+  if (total === 0 || reviewIndex >= total) {
+    document.getElementById('review-empty').style.display = 'block';
+    document.getElementById('review-body').style.display = 'none';
+    document.getElementById('review-skip-btn').style.display = 'none';
+    document.getElementById('review-save-btn').style.display = 'none';
+    return;
+  }
+
+  document.getElementById('review-empty').style.display = 'none';
+  document.getElementById('review-body').style.display = 'block';
+  document.getElementById('review-skip-btn').style.display = 'inline-block';
+  document.getElementById('review-save-btn').style.display = 'inline-block';
+
+  const c = reviewQueue[reviewIndex];
+  document.getElementById('review-name').textContent = `${c.first || ''} ${c.last || ''}`.trim();
+  document.getElementById('review-category').textContent = c.category || '—';
+  document.getElementById('review-date').textContent = c.date || c.correction_date || '';
+  document.getElementById('review-detail').textContent = c.detail || '(no detail logged)';
+  document.getElementById('review-message').value = generateCorrectionMessage(c);
+  document.getElementById('review-notes').value = c.notes || '';
+  document.getElementById('review-current-status').textContent = c.status || 'Pending';
+  document.getElementById('review-current-status').dataset.pendingStatus = c.status || 'Pending';
+}
+
+function setReviewStatus(status) {
+  document.getElementById('review-current-status').textContent = status;
+  document.getElementById('review-current-status').dataset.pendingStatus = status;
+}
+
+function copyReviewMessage() {
+  const ta = document.getElementById('review-message');
+  ta.select();
+  document.execCommand('copy');
+}
+
+async function reviewSaveNext() {
+  const c = reviewQueue[reviewIndex];
+  const status = document.getElementById('review-current-status').dataset.pendingStatus || c.status || 'Pending';
+  const notes = document.getElementById('review-notes').value;
+  try {
+    await fetch(`${BOT_URL}/update/payroll_correction/${c.id}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status, notes })
+    });
+  } catch(e) {}
+  // Reflect the change locally so the queue and table don't need a full refetch
+  c.status = status;
+  c.notes = notes;
+  c.reviewed = true;
+  reviewIndex++;
+  renderReviewItem();
+  renderPayroll();
+}
+
+function reviewSkip() {
+  reviewIndex++;
+  renderReviewItem();
+}
+
+// ═══════════════════════════════════════════════════
+// EXPORT TO EXCEL
+// ═══════════════════════════════════════════════════
+function exportPayrollExcel() {
+  if (payrollCorrections.length === 0) {
+    alert('No corrections to export yet.');
+    return;
+  }
+  const rows = payrollCorrections.map(c => ({
+    'Last Name': c.last || '',
+    'First Name': c.first || '',
+    'Date': c.date || c.correction_date || '',
+    'Category': c.category || '',
+    'Detail': c.detail || '',
+    'Status': c.status || 'Pending',
+    'Comments': c.notes || '',
+    'Source': c.source || 'Slack'
+  }));
+  const ws = XLSX.utils.json_to_sheet(rows);
+  ws['!cols'] = [{wch:14},{wch:14},{wch:10},{wch:18},{wch:36},{wch:12},{wch:44},{wch:10}];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Payroll Corrections');
+  const dateStr = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `Payroll_Corrections_${dateStr}.xlsx`);
 }
 
 // ═══════════════════════════════════════════════════
