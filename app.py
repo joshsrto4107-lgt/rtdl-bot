@@ -628,6 +628,82 @@ def update_payroll_correction(item_id):
     redis_set('payroll_corrections_all', existing)
     return jsonify({'status': 'ok' if found else 'not_found'})
 
+# ═══════════════════════════════════════════════════
+# SCORECARD DISPUTES — reads dispatch reports straight from Slack
+# ═══════════════════════════════════════════════════
+DISPUTE_CHANNELS = {
+    'C0C62K4RD38': 'daily-dcr-reports',
+    'C0BGME0G64F': 'daily-operations',
+}
+SKIP_SUBTYPES = {'channel_join', 'channel_leave', 'channel_topic', 'channel_purpose', 'channel_name', 'bot_add', 'bot_remove'}
+
+def slack_api(method, params):
+    headers = {"Authorization": f"Bearer {SLACK_BOT_TOKEN}"}
+    res = requests.get(f"https://slack.com/api/{method}", headers=headers, params=params, timeout=20)
+    return res.json()
+
+def count_files(msg):
+    return len(msg.get('files') or [])
+
+@app.route('/disputes', methods=['GET'])
+def get_disputes():
+    oldest = request.args.get('oldest', '0')
+    latest = request.args.get('latest', '')
+    items, errors = [], []
+    for channel_id, channel_name in DISPUTE_CHANNELS.items():
+        cursor, pages, messages = None, 0, []
+        while True:
+            params = {'channel': channel_id, 'oldest': oldest, 'limit': 200, 'inclusive': 'true'}
+            if latest: params['latest'] = latest
+            if cursor: params['cursor'] = cursor
+            data = slack_api('conversations.history', params)
+            if not data.get('ok'):
+                errors.append({'channel': channel_name, 'error': data.get('error', 'unknown')})
+                break
+            messages.extend(data.get('messages', []))
+            cursor = (data.get('response_metadata') or {}).get('next_cursor')
+            pages += 1
+            if not cursor or pages >= 10:
+                break
+        for m in messages:
+            if m.get('subtype') in SKIP_SUBTYPES or m.get('subtype') == 'thread_broadcast':
+                continue
+            if m.get('thread_ts') and m.get('thread_ts') != m.get('ts'):
+                continue  # a reply that was also sent to the channel
+            item = {
+                'ts': m.get('ts'),
+                'channel_id': channel_id,
+                'channel': channel_name,
+                'text': m.get('text', ''),
+                'files': count_files(m),
+                'reply_text': '',
+            }
+            if m.get('reply_count'):
+                rep = slack_api('conversations.replies', {'channel': channel_id, 'ts': m['ts'], 'limit': 50})
+                if rep.get('ok'):
+                    replies = [r for r in rep.get('messages', []) if r.get('ts') != m.get('ts')]
+                    item['reply_text'] = '\n'.join(r.get('text', '') for r in replies)
+                    item['files'] += sum(count_files(r) for r in replies)
+            if item['text'].strip() or item['files']:
+                items.append(item)
+    return jsonify({'items': items, 'errors': errors})
+
+@app.route('/disputes/status', methods=['GET'])
+def get_dispute_status():
+    return jsonify({'result': redis_get('dispute_status') or {}})
+
+@app.route('/disputes/status', methods=['POST'])
+def update_dispute_status():
+    body = request.json or {}
+    item_id = str(body.pop('id', '')).strip()
+    if not item_id:
+        return jsonify({'status': 'error', 'error': 'missing id'}), 400
+    allowed = {k: v for k, v in body.items() if k in ('status', 'tba', 'driver', 'status_at')}
+    statuses = redis_get('dispute_status') or {}
+    statuses[item_id] = {**statuses.get(item_id, {}), **allowed}
+    redis_set('dispute_status', statuses)
+    return jsonify({'status': 'ok'})
+
 @app.route('/data/<key>', methods=['GET'])
 def get_data(key):
     headers = {"Authorization": f"Bearer {UPSTASH_TOKEN}"}
