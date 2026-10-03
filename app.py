@@ -4,7 +4,7 @@ import json
 import requests
 import csv
 import io
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 
 app = Flask(__name__)
@@ -633,7 +633,6 @@ def update_payroll_correction(item_id):
 # ═══════════════════════════════════════════════════
 DISPUTE_CHANNELS = {
     'C0C62K4RD38': 'daily-dcr-reports',
-    'C0BGME0G64F': 'daily-operations',
 }
 SKIP_SUBTYPES = {'channel_join', 'channel_leave', 'channel_topic', 'channel_purpose', 'channel_name', 'bot_add', 'bot_remove'}
 
@@ -642,8 +641,13 @@ def slack_api(method, params):
     res = requests.get(f"https://slack.com/api/{method}", headers=headers, params=params, timeout=20)
     return res.json()
 
-def count_files(msg):
-    return len(msg.get('files') or [])
+def image_files(msg):
+    """Evidence photos on a message, as ids the dashboard loads through /disputes/file."""
+    out = []
+    for f in msg.get('files') or []:
+        if (f.get('mimetype') or '').startswith('image/') and f.get('id'):
+            out.append({'id': f['id'], 'name': f.get('name', '')})
+    return out
 
 @app.route('/disputes', methods=['GET'])
 def get_disputes():
@@ -675,7 +679,7 @@ def get_disputes():
                 'channel_id': channel_id,
                 'channel': channel_name,
                 'text': m.get('text', ''),
-                'files': count_files(m),
+                'photos': image_files(m),
                 'reply_text': '',
             }
             if m.get('reply_count'):
@@ -683,10 +687,37 @@ def get_disputes():
                 if rep.get('ok'):
                     replies = [r for r in rep.get('messages', []) if r.get('ts') != m.get('ts')]
                     item['reply_text'] = '\n'.join(r.get('text', '') for r in replies)
-                    item['files'] += sum(count_files(r) for r in replies)
+                    for r in replies:
+                        item['photos'].extend(image_files(r))
+            item['files'] = len(item['photos'])
             if item['text'].strip() or item['files']:
                 items.append(item)
     return jsonify({'items': items, 'errors': errors})
+
+@app.route('/disputes/file/<file_id>', methods=['GET'])
+def get_dispute_file(file_id):
+    """Streams a Slack photo to the dashboard (Slack files need the bot token to view)."""
+    if not re.fullmatch(r'F[A-Z0-9]{6,20}', file_id):
+        return 'Bad file id', 400
+    info = slack_api('files.info', {'file': file_id})
+    if not info.get('ok'):
+        return f"Slack error: {info.get('error', 'unknown')}", 404
+    f = info.get('file', {})
+    if not (f.get('mimetype') or '').startswith('image/'):
+        return 'Not an image', 404
+    want_thumb = request.args.get('size') == 'thumb'
+    url = (f.get('thumb_480') or f.get('thumb_360')) if want_thumb else None
+    url = url or f.get('url_private')
+    if not url or not url.startswith('https://files.slack.com/'):
+        return 'No image', 404
+    img = requests.get(url, headers={"Authorization": f"Bearer {SLACK_BOT_TOKEN}"}, timeout=30)
+    if img.status_code != 200 or not img.headers.get('Content-Type', '').startswith('image/'):
+        return 'Could not load image', 502
+    headers = {'Cache-Control': 'private, max-age=86400'}
+    if request.args.get('download'):
+        safe_name = re.sub(r'[^A-Za-z0-9._-]', '_', f.get('name') or f'{file_id}.png')
+        headers['Content-Disposition'] = f'attachment; filename="{file_id}-{safe_name}"'
+    return Response(img.content, mimetype=img.headers['Content-Type'], headers=headers)
 
 @app.route('/disputes/status', methods=['GET'])
 def get_dispute_status():
@@ -698,7 +729,7 @@ def update_dispute_status():
     item_id = str(body.pop('id', '')).strip()
     if not item_id:
         return jsonify({'status': 'error', 'error': 'missing id'}), 400
-    allowed = {k: v for k, v in body.items() if k in ('status', 'tba', 'driver', 'status_at')}
+    allowed = {k: v for k, v in body.items() if k in ('status', 'tba', 'driver', 'status_at', 'details')}
     statuses = redis_get('dispute_status') or {}
     statuses[item_id] = {**statuses.get(item_id, {}), **allowed}
     redis_set('dispute_status', statuses)

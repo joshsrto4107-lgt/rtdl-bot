@@ -375,6 +375,169 @@
   .dsp-side { padding:16px; border-left:1px solid var(--border); display:flex; flex-direction:column; gap:8px; }
   .dsp-side .btn { width:100%; text-align:center; text-decoration:none; padding:8px 12px; }
   .dsp-strength { font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:1px; }
+  .dsp-form { grid-column:1 / -1; border-top:1px solid var(--border); padding:16px; display:flex; flex-direction:column; gap:12px; background:rgba(0,0,0,0.25); }
+  .dsp-form[hidden] { display:none; }
+  .dsp-pkg { border:1px solid var(--border); border-radius:10px; padding:16px; background:var(--card); }
+  .dsp-pkg-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(220px,1fr)); gap:12px; font-size:13px; }
+  .dsp-tba-copy { background:none; border:1px dashed var(--border); border-radius:6px; color:var(--white); font-family:'JetBrains Mono', monospace; font-size:13px; padding:4px 8px; cursor:pointer; }
+  .dsp-tba-copy:hover { border-color:var(--wave); color:var(--wave); }
+  .dsp-muted { color:var(--gray); font-size:13px; }
+  .dsp-details { resize:vertical; line-height:1.5; font-size:13px; }
+  .dsp-form-foot { display:flex; align-items:center; gap:8px; margin-top:8px; }
+  .dsp-form-foot .dsp-count { flex:1; font-size:12px; color:var(--gray); font-family:'JetBrains Mono', monospace; }
+  .dsp-dl { display:flex; flex-wrap:wrap; gap:8px; }
+  .dsp-dl .btn { padding:6px 12px; text-decoration:none; }
+  .dsp-photos { display:flex; flex-wrap:wrap; gap:8px; }
+  .dsp-thumb { width:96px; height:96px; padding:0; border:1px solid var(--border); border-radius:8px; overflow:hidden; background:rgba(255,255,255,0.04); cursor:zoom-in; }
+  .dsp-thumb img { width:100%; height:100%; object-fit:cover; display:block; transition:transform .2s; }
+  .dsp-thumb:hover img { transform:scale(1.05); }
+  .dsp-thumb:hover { border-color:var(--wave); }
+  .dsp-thumb-err { cursor:default; position:relative; }
+  .dsp-thumb-err::after { content:'Photo unavailable'; position:absolute; inset:0; display:flex; align-items:center; justify-content:center; text-align:center; font-size:10px; color:var(--gray); padding:6px; }
+  #dsp-lightbox { position:fixed; inset:0; background:rgba(0,0,0,0.92); z-index:2000; display:none; align-items:center; justify-content:center; padding:64px 72px 24px; }
+  #dsp-lightbox img { max-width:100%; max-height:100%; object-fit:contain; border-radius:6px; }
+  .dsp-lb-top { position:absolute; top:0; left:0; right:0; display:flex; align-items:center; gap:16px; padding:16px 20px; font-size:13px; color:var(--gray); }
+  .dsp-lb-top span { flex:1; }
+  .dsp-lb-top a { color:var(--wave); text-decoration:none; }
+  .dsp-lb-top button, .dsp-lb-nav { background:rgba(255,255,255,0.08); border:1px solid var(--border); color:var(--white); border-radius:8px; cursor:pointer; }
+  .dsp-lb-top button { width:36px; height:36px; font-size:16px; }
+  .dsp-lb-nav { position:absolute; top:50%; transform:translateY(-50%); width:44px; height:64px; font-size:28px; }
+  /* ═══════════════════════════════════════════════════
+     POLISH LAYER — refines the look of every tab without touching section code.
+     Delete this block to return to the previous style.
+     ═══════════════════════════════════════════════════ */
+  :root {
+    --bg-0: #05070b;
+    --surface-1: rgba(255,255,255,0.035);
+    --surface-2: rgba(255,255,255,0.06);
+    --hairline: rgba(255,255,255,0.07);
+    --hairline-strong: rgba(255,255,255,0.14);
+    --glow: rgba(75,172,198,0.35);
+    --border: var(--hairline);
+    --card: var(--surface-1);
+    --card-hover: var(--surface-2);
+    --radius: 16px;
+    --shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 12px 32px -16px rgba(0,0,0,0.8);
+  }
+  html { scrollbar-color: rgba(255,255,255,0.15) transparent; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 10px; border: 2px solid var(--bg-0); }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::selection { background: rgba(75,172,198,0.35); }
+
+  body {
+    background:
+      radial-gradient(1200px 600px at 15% -10%, rgba(46,116,181,0.18), transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, rgba(23,117,138,0.14), transparent 55%),
+      var(--bg-0);
+    background-attachment: fixed;
+    font-feature-settings: 'cv11', 'ss01', 'ss03';
+    -webkit-font-smoothing: antialiased;
+    letter-spacing: -0.005em;
+  }
+
+  /* Header + nav: frosted glass that stays put while you scroll */
+  .header {
+    background: rgba(8,11,17,0.72);
+    backdrop-filter: saturate(160%) blur(18px);
+    -webkit-backdrop-filter: saturate(160%) blur(18px);
+    border-bottom: 1px solid var(--hairline);
+    height: 68px;
+  }
+  .header-title { font-size: 19px; letter-spacing: -0.02em; }
+  .header-sub { letter-spacing: 1.6px; font-size: 10.5px; opacity: .9; }
+  .date-badge { background: var(--surface-1); border-color: var(--hairline); border-radius: 999px; padding: 6px 14px; color: #cbd5e1; }
+
+  .nav {
+    position: sticky; top: 68px; z-index: 99;
+    background: rgba(8,11,17,0.6);
+    backdrop-filter: saturate(160%) blur(18px);
+    -webkit-backdrop-filter: saturate(160%) blur(18px);
+    border-bottom: 1px solid var(--hairline);
+    padding: 8px 24px; gap: 4px;
+    scrollbar-width: none;
+  }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav-tab {
+    padding: 8px 14px; border-radius: 10px; border-bottom: none !important;
+    font-size: 13px; color: #8b97a8; transition: color .2s, background .2s, box-shadow .2s;
+  }
+  .nav-tab:hover { color: var(--white); background: var(--surface-1); }
+  .nav-tab.active {
+    color: #e6f6fb; background: linear-gradient(180deg, rgba(75,172,198,0.20), rgba(75,172,198,0.08));
+    box-shadow: inset 0 0 0 1px rgba(75,172,198,0.35), 0 6px 18px -8px var(--glow);
+  }
+
+  .main { padding: 32px 28px 64px; }
+  .section.active { animation: polish-rise .35s cubic-bezier(.2,.7,.2,1); }
+  @keyframes polish-rise { from { transform: translateY(6px); } to { transform: none; } }
+
+  .section-header { margin-bottom: 24px; }
+  .section-title { font-size: 24px; font-weight: 700; letter-spacing: -0.025em; }
+  .section-sub { color: #8b97a8; }
+
+  /* Cards */
+  .card, .stat-card {
+    background: linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.02));
+    border: 1px solid var(--hairline);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    transition: border-color .2s, transform .2s, box-shadow .2s;
+  }
+  .card:hover, .stat-card:hover { border-color: var(--hairline-strong); }
+  .card-title { color: #8b97a8; letter-spacing: 1.2px; font-size: 11.5px; }
+
+  /* Stat cards: soft color wash instead of a hard top bar */
+  .stat-card { padding: 22px; }
+  .stat-card::before { height: 1px; left: 16px; right: 16px; opacity: .9; }
+  .stat-card.green::before { background: linear-gradient(90deg, transparent, var(--green), transparent); }
+  .stat-card.yellow::before { background: linear-gradient(90deg, transparent, var(--yellow), transparent); }
+  .stat-card.red::before { background: linear-gradient(90deg, transparent, var(--red), transparent); }
+  .stat-card.blue::before { background: linear-gradient(90deg, transparent, var(--wave), transparent); }
+  .stat-card::after { content: ''; position: absolute; inset: 0; pointer-events: none; opacity: .5; }
+  .stat-card > * { position: relative; z-index: 1; }
+  .stat-card.green::after { background: radial-gradient(260px 120px at 0% 0%, rgba(34,197,94,0.10), transparent 70%); }
+  .stat-card.yellow::after { background: radial-gradient(260px 120px at 0% 0%, rgba(234,179,8,0.10), transparent 70%); }
+  .stat-card.red::after { background: radial-gradient(260px 120px at 0% 0%, rgba(239,68,68,0.10), transparent 70%); }
+  .stat-card.blue::after { background: radial-gradient(260px 120px at 0% 0%, rgba(75,172,198,0.12), transparent 70%); }
+  .stat-label { color: #8b97a8; letter-spacing: 1px; font-size: 10.5px; }
+  .stat-value { font-weight: 700; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+
+  /* Controls */
+  .btn { border-radius: 10px; letter-spacing: -0.005em; }
+  .btn-primary {
+    background: linear-gradient(180deg, #3fa3c4, #1f6f9c);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.18), 0 8px 20px -10px var(--glow);
+  }
+  .btn-primary:hover { opacity: 1; filter: brightness(1.08); transform: translateY(-1px); }
+  .btn-ghost { background: var(--surface-1); border: 1px solid var(--hairline); color: #cbd5e1; }
+  .btn-ghost:hover { background: var(--surface-2); border-color: rgba(75,172,198,0.45); color: var(--white); }
+  .input { background: rgba(0,0,0,0.35); border-color: var(--hairline); border-radius: 10px; }
+  .input:focus { border-color: rgba(75,172,198,0.6); box-shadow: 0 0 0 3px rgba(75,172,198,0.15); }
+  :focus-visible { outline: 2px solid rgba(75,172,198,0.7); outline-offset: 2px; }
+  .pill { padding: 3px 10px; letter-spacing: .2px; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05); }
+
+  /* Tables & alerts */
+  .table th { color: #7c8899; font-size: 10.5px; letter-spacing: 1px; border-bottom-color: var(--hairline); }
+  .table td { border-bottom-color: rgba(255,255,255,0.035); font-variant-numeric: tabular-nums; }
+  .table tr:hover td { background: rgba(255,255,255,0.03); }
+  .alert { border-radius: 12px; }
+  .progress-bar { background: rgba(255,255,255,0.06); height: 6px; }
+
+  /* Modals */
+  .modal-overlay { backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px); }
+
+  /* Disputes tab in the same language */
+  .dsp-row { border-radius: var(--radius); background: linear-gradient(180deg, rgba(255,255,255,0.045), rgba(255,255,255,0.02)); box-shadow: var(--shadow); }
+  .dsp-when { background: rgba(255,255,255,0.025); }
+  .dsp-week { border-radius: 12px; background: var(--surface-1); }
+  .dsp-chip { border-radius: 999px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .section.active { animation: none; }
+    .card, .stat-card, .btn, .nav-tab { transition: none; }
+  }
+
   @media (max-width:820px) {
     .dsp-row { grid-template-columns:minmax(0,1fr); }
     .dsp-side { border-left:none; border-top:1px solid var(--border); }
@@ -990,7 +1153,7 @@
     <div class="section-header" style="flex-wrap:wrap; gap:12px;">
       <div>
         <div class="section-title">Scorecard Disputes</div>
-        <div class="section-sub" id="dsp-status">Dispatch reports from #daily-dcr-reports and #daily-operations</div>
+        <div class="section-sub" id="dsp-status">Dispatch reports from #daily-dcr-reports</div>
       </div>
       <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
         <div class="dsp-week">
@@ -2688,19 +2851,17 @@ function toggleMic() {
 // RENDER ALL
 // ═══════════════════════════════════════════════════
 function renderAll() {
-  renderManagers();
-  renderScorecard();
-  renderManagement();
-  renderFleet();
-  renderPayroll();
-  renderRamp();
-  renderCalendar();
-  renderMorningBrief();
-  // Async data-driven renders
-  renderAmazonScorecard();
-  renderManagerComplaints();
-  fetchPayrollCorrections();
-  renderUploadBatches();
+  // Each section renders on its own, so one broken section can't blank out the rest.
+  const renders = [
+    'renderManagers', 'renderScorecard', 'renderFleet', 'renderPayroll', 'renderRamp',
+    'renderCalendar', 'renderMorningBrief',
+    // Async data-driven renders
+    'renderAmazonScorecard', 'renderManagerComplaints', 'fetchPayrollCorrections', 'renderUploadBatches'
+  ];
+  renders.forEach(name => {
+    try { if (typeof window[name] === 'function') window[name](); }
+    catch (e) { console.error(`${name} failed:`, e); }
+  });
 }
 
 
@@ -4764,12 +4925,16 @@ rebuildLocationToggle();
 // SCORECARD DISPUTES — dispatch reports from Slack via Rip
 // ═══════════════════════════════════════════════════
 const DSP_REASONS = [
+  { key:'dispatchlate', label:'Dispatch delayed',  metric:'DCR', color:'#38BDF8', re:/late (line|dispatch|load|launch)|dispatch(ed)? (was )?(late|delay)|delayed (dispatch|departure|launch)|left (the )?station late/i },
+  { key:'nosvc',    label:'No cell service',      metric:'DCR', color:'#818CF8', re:/no (cell )?(service|signal|reception)|network (was |is )?down|outage|lost (service|signal)/i },
+  { key:'medical',  label:'Medical',              metric:'DCR', color:'#F472B6', re:/medical|seizure|hospital|ambulance|passed out|fainted/i },
+  { key:'event',    label:'Road closure / event', metric:'DCR', color:'#FB923C', re:/road (was )?closed|road closure|parade|detour|large scale|police (blocked|activity)/i },
   { key:'closed',   label:'Business closed',      metric:'DCR', color:'#4BACC6', re:/\bclosed\b|after hours|business hours|clos(ed|ing) for/i },
   { key:'missing',  label:'Package missing',      metric:'DCR', color:'#A78BFA', re:/missing|not on (the )?(van|route)|couldn'?t find (the )?pa?ckage|mis-?sort/i },
   { key:'damaged',  label:'Damaged package',      metric:'DCR', color:'#F97316', re:/damag|crush|leak|broken/i },
   { key:'access',   label:'No access',            metric:'DCR', color:'#14B8A6', re:/no access|gate|locked|access code|call box|couldn'?t get in(to)? (the )?(building|complex)/i },
   { key:'custunav', label:'Customer unavailable', metric:'DCR', color:'#22C55E', re:/customer (was )?(unavailable|not available|not home)|couldn'?t get in contact|could not (reach|contact)|no answer|unable to (reach|contact)/i },
-  { key:'unsafe',   label:'Unsafe / weather',     metric:'DCR', color:'#EAB308', re:/unsafe|dog|weather|flood|ice|storm|road closed/i },
+  { key:'unsafe',   label:'Unsafe / weather',     metric:'DCR', color:'#EAB308', re:/unsafe|dog|weather|flood|\bice\b|storm|safety incident|threat/i },
   { key:'address',  label:'Bad address',          metric:'DCR', color:'#94A3B8', re:/wrong address|bad address|address (not found|doesn'?t exist|incorrect)|can'?t locate|cannot locate/i },
   { key:'pod',      label:'POD / photo',          metric:'POD', color:'#EC4899', re:/\bpod\b|photo on delivery|photo (blurry|rejected)|picture of (the )?(package|delivery)/i },
   { key:'cdf',      label:'Customer feedback',    metric:'CDF', color:'#EF4444', re:/complain|feedback|\bcdf\b|rude|left at wrong|customer said/i },
@@ -4779,6 +4944,7 @@ const DSP_REASONS = [
 const DSP_STATUSES = [['new','Not filed'],['filed','Filed'],['approved','Approved'],['denied','Denied']];
 let dspWeekStart = dspSunday(new Date());
 let dspItems = [], dspMeta = {}, dspFilter = 'all', dspShowOther = false, dspSeq = 0;
+const dspOpenForms = new Set();  // keeps "Prepare dispute" panels open across re-renders
 
 function dspSunday(d){ const x = new Date(d); x.setHours(0,0,0,0); x.setDate(x.getDate() - x.getDay()); return x; }
 function dspAddDays(d,n){ const x = new Date(d); x.setDate(x.getDate()+n); return x; }
@@ -4810,7 +4976,7 @@ function dspEnrich(m){
   const text = dspClean(m.text), replyText = dspClean(m.reply_text), all = text + '\n' + replyText;
   const reason = DSP_REASONS.find(r => r.re.test(text)) || null;
   const tba = [...new Set((all.match(/TBA\d{9,}/gi)||[]).map(s => s.toUpperCase()))].join(' / ');
-  const ds = /driv(er|ing) support|\bDS\b/i.test(all);
+  const ds = /driv(er|ing) support|called support|contacted support|\bDS\b/i.test(all);
   let driver = '';
   const dm = /^(?:TBA\d+\s*[-–:]\s*)?([A-Za-z][a-zA-Z']+ [A-Za-z][a-zA-Z']+)\s+(?:called|reported|has|had|returned|tried|got|said|was|is|could|couldn|attempted|marked|went|arrived|did)/i.exec(text);
   if (dm) driver = dm[1].split(' ').map(w => w[0].toUpperCase() + w.slice(1).toLowerCase()).join(' ');
@@ -4839,7 +5005,7 @@ async function loadDisputes(){
     dspMeta = st.result || {};
     dspItems = (rep.items || []).map(dspEnrich).sort((a,b) => b.date - a.date);
     if (rep.errors && rep.errors.length) dspShowErrors(rep.errors);
-    document.getElementById('dsp-status').textContent = `Updated ${dspFmtT(new Date())} · #daily-dcr-reports, #daily-operations`;
+    document.getElementById('dsp-status').textContent = `Updated ${dspFmtT(new Date())} · #daily-dcr-reports`;
     dspRender();
   } catch (e) {
     if (seq !== dspSeq) return;
@@ -4854,9 +5020,9 @@ function dspShowErrors(errors){
     `<div class="alert yellow"><div class="alert-icon">⚠️</div><div><div class="alert-title">Couldn't read #${dspEsc(e.channel)}</div><div class="alert-text">${dspEsc(why[e.error] || ('Slack said: ' + e.error))}</div></div></div>`).join('');
 }
 
-async function dspSave(id, patch){
+async function dspSave(id, patch, quiet){
   dspMeta[id] = { ...(dspMeta[id]||{}), ...patch };
-  dspRender();
+  if (!quiet) dspRender();  // quiet = saving while typing; re-rendering would steal focus
   try {
     const r = await fetch(`${BOT_URL}/disputes/status`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ id, ...patch }) });
     if (!r.ok) throw new Error();
@@ -4880,6 +5046,79 @@ function dspReasonSentence(it){
   }[k] || 'See dispatch log.';
   return it.ds && k !== 'undeliv' && k !== 'missing' ? base + ' Amazon Driver Support was contacted.' : base;
 }
+// ── Amazon "Submit a data dispute" form: one dispute per Tracking ID ──
+// Which "Reason for dispute" option to pick in Amazon's dropdown.
+// Reasons not listed here (business closed, customer unavailable, no access…) had no exact
+// match in the options seen so far, so the page asks you to pick the closest one.
+const DSP_DROPDOWN = {
+  dispatchlate: 'Dispatch delayed for 2+ hours (DC DPMO)',
+  unsafe: 'Safety incident or Unsafe situation prevented delivery (DC DPMO)',
+  event: 'Large scale event or unexpected road closure impacted a DA\'s ability to deliver (DC DPMO)',
+  nosvc: 'No cell phone service – rural area (DC DPMO)',
+  medical: 'DA unable to communicate due to medical condition/disability (DC DPMO)',
+  missing: 'Package not on van for delivery (DC DPMO)'
+};
+function dspPick(it){
+  const k = it.reason && it.reason.key;
+  if (k === 'nosvc' && /network|outage/i.test(it.text + ' ' + it.replyText)) return 'No cell phone service – Network Down (DC DPMO)';
+  return DSP_DROPDOWN[k] || '';
+}
+const DSP_LIMIT = 3500;
+function dspTbas(it){ const t = (dspM(it).tba ?? it.tba) || ''; return t.split(/[\s\/,]+/).map(s => s.trim().toUpperCase()).filter(s => /^TBA\d{9,}$/.test(s)); }
+function dspDetails(it, tba){
+  const m = dspM(it);
+  if (m.details && m.details[tba]) return m.details[tba];
+  const driver = (m.driver ?? it.driver) || 'The Delivery Associate';
+  const k = it.reason && it.reason.key, t = it.text + ' ' + it.replyText;
+  const what = {
+    closed: 'The business was closed at the time of the attempt, so the package could not be delivered.',
+    missing: 'The package was not on the van at the time of delivery.',
+    damaged: 'The package was damaged and could not be delivered.',
+    access: 'The DA could not access the delivery location.',
+    custunav: 'The DA could not reach the customer to complete the delivery.',
+    unsafe: 'The delivery location was unsafe, so the delivery could not be completed.',
+    address: 'The delivery address could not be located.',
+    undeliv: 'The package could not be delivered.'
+  }[k] || 'The package could not be delivered for reasons outside the DA\'s control.';
+  let support = '';
+  if (it.ds){
+    const acts = [];
+    if (/closed/i.test(t) && /support[^.]*closed|marked (it )?closed/i.test(t)) acts.push('confirmed the business was closed');
+    if (/marked[^.]*undeliverable|undeliverable[^.]*marked/i.test(t)) acts.push('marked the package undeliverable');
+    if (/marked[^.]*missing/i.test(t)) acts.push('marked the package missing');
+    if (/return (to )?(the )?station/i.test(t)) acts.push('instructed the DA to return it to the station');
+    support = acts.length ? `The DA contacted Amazon Driver Support during the attempt. Driver Support ${acts.join(', ').replace(/, ([^,]*)$/, ' and $1')}.` : 'The DA contacted Amazon Driver Support during the attempt.';
+  }
+  const opener = k === 'missing'
+    ? `On ${dspFmtDay(it.date)} at ${dspFmtT(it.date)} CT, ${tba} was assigned to ${driver}'s route. ${what}`
+    : `On ${dspFmtDay(it.date)} at ${dspFmtT(it.date)} CT, ${driver} attempted delivery of ${tba}. ${what}`;
+  const parts = [
+    opener,
+    support,
+    it.files ? 'Supporting screenshots from the attempt are attached.' : '',
+    'This failed delivery was outside the control of the DA and the DSP. We request that this defect be removed from our scorecard.'
+  ].filter(Boolean);
+  return parts.join('\n\n').slice(0, DSP_LIMIT);
+}
+function dspToggleForm(id){
+  const el = document.getElementById('dsp-form-' + id); if (!el) return;
+  el.hidden = !el.hidden;
+  if (el.hidden) dspOpenForms.delete(id); else dspOpenForms.add(id);
+}
+function dspCopyDetails(id, tba){ const it = dspItems.find(x => x.id === id); if (it) dspCopy(dspDetails(it, tba), `Details for ${tba} copied. Paste into "Details about the dispute".`); }
+function dspCopyTba(tba){ dspCopy(tba, `${tba} copied.`); }
+function dspEditDetails(id, tba, el){
+  const it = dspItems.find(x => x.id === id); if (!it) return;
+  const details = { ...(dspM(it).details || {}), [tba]: el.value };
+  el.parentNode.querySelector('.dsp-count').textContent = `${el.value.length}/${DSP_LIMIT} characters`;
+  clearTimeout(el._t); el._t = setTimeout(() => dspSave(id, { details }, true), 800);
+}
+function dspResetDetails(id, tba){
+  const it = dspItems.find(x => x.id === id); if (!it) return;
+  const details = { ...(dspM(it).details || {}) }; delete details[tba];
+  dspSave(id, { details });
+}
+
 function dspText(it){
   const m = dspM(it), tba = (m.tba ?? it.tba) || '', driver = (m.driver ?? it.driver) || '';
   const w = dspAmazonWeek(dspWeekStart);
@@ -4921,7 +5160,7 @@ function dspRender(){
   const rows = dspItems.filter(it => (dspShowOther || it.reason) && (dspFilter === 'all' || (it.reason ? it.reason.key : 'other') === dspFilter));
   const list = document.getElementById('dsp-list');
   if (!rows.length){
-    list.innerHTML = `<div class="card" style="text-align:center; color:var(--gray); padding:32px;"><div style="color:var(--white); font-weight:700; font-size:16px; margin-bottom:4px;">No dispatch reports for this week</div>${dspItems.length ? 'Nothing matches this filter. Turn on untagged messages to see everything dispatch posted.' : 'When dispatch posts in #daily-dcr-reports or #daily-operations, those reports show up here, ready to dispute.'}</div>`;
+    list.innerHTML = `<div class="card" style="text-align:center; color:var(--gray); padding:32px;"><div style="color:var(--white); font-weight:700; font-size:16px; margin-bottom:4px;">No dispatch reports for this week</div>${dspItems.length ? 'Nothing matches this filter. Turn on untagged messages to see everything dispatch posted.' : 'When dispatch posts in #daily-dcr-reports, those reports show up here, ready to dispute.'}</div>`;
     return;
   }
   list.innerHTML = rows.map(it => {
@@ -4934,6 +5173,7 @@ function dspRender(){
         <div class="dsp-head"><span class="dsp-driver">${dspEsc(driver || 'Driver not detected')}</span>
           ${it.reason ? `<span class="pill" style="background:${it.reason.color}22; color:${it.reason.color}">${it.reason.label}</span><span class="pill blue">${it.reason.metric}</span>` : ''}</div>
         <div class="dsp-quote">${dspEsc(it.text)}${it.replyText ? `<small>Thread: ${dspEsc(it.replyText.replace(/\s+/g,' '))}</small>` : ''}</div>
+        ${(it.photos||[]).length ? `<div class="dsp-photos">${it.photos.map((p,i) => `<button class="dsp-thumb" onclick="dspOpenPhoto('${it.id}',${i})" title="View photo ${i+1}"><img loading="lazy" src="${BOT_URL}/disputes/file/${p.id}?size=thumb" alt="Evidence photo ${i+1}" onerror="this.parentNode.classList.add('dsp-thumb-err'); this.remove()"></button>`).join('')}</div>` : ''}
         <div class="dsp-ev">${ev(it.ds,'Driver Support contacted','No Driver Support mention')}${ev(it.files>0, `${it.files} screenshot${it.files>1?'s':''}`, 'No screenshots')}${ev(!!tba,'TBA','TBA missing')}</div>
         <div class="dsp-fields">TBA <input class="input dsp-tba" value="${dspEsc(tba)}" placeholder="TBA…" onchange="dspSave('${it.id}', {tba: this.value.trim().toUpperCase()})">
           Driver <input class="input" value="${dspEsc(driver)}" placeholder="Driver name" onchange="dspSave('${it.id}', {driver: this.value.trim()})"></div>
@@ -4944,8 +5184,26 @@ function dspRender(){
         <select class="input" onchange="dspSave('${it.id}', {status: this.value, status_at: new Date().toISOString()})">
           ${DSP_STATUSES.map(([v,t]) => `<option value="${v}" ${v===status?'selected':''}>${t}</option>`).join('')}
         </select>
-        <button class="btn btn-primary" onclick="dspCopyOne('${it.id}')">Copy dispute</button>
+        <button class="btn btn-primary" onclick="dspToggleForm('${it.id}')">Prepare dispute ▾</button>
         <a class="btn btn-ghost" href="${dspLink(it)}" target="_blank" rel="noopener">Open in Slack</a>
+      </div>
+      <div class="dsp-form" id="dsp-form-${it.id}" ${dspOpenForms.has(it.id) ? '' : 'hidden'}>
+        ${dspTbas(it).length ? dspTbas(it).map(tba => {
+          const det = dspDetails(it, tba), edited = !!((m.details||{})[tba]);
+          const pick = dspPick(it);
+          return `<div class="dsp-pkg">
+            <div class="dsp-pkg-grid">
+              <div><div class="label">Tracking ID</div><button class="dsp-tba-copy" onclick="dspCopyTba('${tba}')" title="Copy">${tba} ⧉</button></div>
+              <div><div class="label">Reason for dispute</div><div class="${pick ? '' : 'dsp-muted'}">${pick ? dspEsc(pick) : 'Pick the closest option in the dropdown'}</div></div>
+            </div>
+            <div class="label" style="margin-top:12px;">Details about the dispute ${edited ? '<span class="pill yellow" style="margin-left:6px">edited</span>' : ''}</div>
+            <textarea class="input dsp-details" rows="8" maxlength="${DSP_LIMIT}" oninput="dspEditDetails('${it.id}','${tba}',this)">${dspEsc(det)}</textarea>
+            <div class="dsp-form-foot"><span class="dsp-count">${det.length}/${DSP_LIMIT} characters</span>
+              ${edited ? `<button class="btn btn-ghost" onclick="dspResetDetails('${it.id}','${tba}')">Reset text</button>` : ''}
+              <button class="btn btn-primary" onclick="dspCopyDetails('${it.id}','${tba}')">Copy details</button></div>
+            ${(it.photos||[]).length ? `<div class="label" style="margin-top:12px;">Attachment: download a photo, then use Upload file</div>
+              <div class="dsp-dl">${it.photos.map((p,i) => `<a class="btn btn-ghost" href="${BOT_URL}/disputes/file/${p.id}?download=1">⬇ Photo ${i+1}</a>`).join('')}</div>` : ''}
+          </div>`; }).join('') : `<div class="dsp-muted">Add the TBA above to build the dispute. Amazon's form needs one dispute per Tracking ID.</div>`}
       </div>
     </div>`;
   }).join('');
@@ -4965,7 +5223,13 @@ function dspCopyOne(id){ const it = dspItems.find(x => x.id === id); if (it) dsp
 function dspCopyAll(){
   const list = dspItems.filter(it => it.reason && it.reason.metric !== 'Context' && (dspM(it).status || 'new') === 'new');
   if (!list.length) return dspToast('No unfiled disputes this week.');
-  dspCopy(list.map(dspText).join('\n\n----------\n\n'), `${list.length} disputes copied.`);
+  const blocks = [];
+  list.forEach(it => {
+    const tbas = dspTbas(it);
+    if (!tbas.length) blocks.push(`[No TBA yet] ${(dspM(it).driver ?? it.driver) || 'Report'} · ${dspFmtDay(it.date)}\n${it.text}`);
+    tbas.forEach(tba => blocks.push(`${tba}\nReason for dispute: ${dspPick(it) || 'pick closest option'}\n\n${dspDetails(it, tba)}`));
+  });
+  dspCopy(blocks.join('\n\n----------\n\n'), `${blocks.length} disputes copied.`);
 }
 function dspExportCsv(){
   const esc = v => '"' + String(v ?? '').replace(/"/g,'""') + '"';
@@ -4978,6 +5242,41 @@ function dspExportCsv(){
   a.download = `disputes-${w.year}-W${String(w.week).padStart(2,'0')}.csv`;
   a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
+// Full-size photo viewer (← → to flip, Esc to close)
+let dspViewer = null;
+function dspOpenPhoto(id, idx){
+  const it = dspItems.find(x => x.id === id);
+  if (!it || !(it.photos||[]).length) return;
+  dspViewer = { it, idx };
+  let box = document.getElementById('dsp-lightbox');
+  if (!box){
+    box = document.createElement('div'); box.id = 'dsp-lightbox';
+    box.innerHTML = `<div class="dsp-lb-top"><span id="dsp-lb-cap"></span><a id="dsp-lb-open" target="_blank" rel="noopener">Open full size ↗</a><button onclick="dspClosePhoto()" title="Close">✕</button></div>
+      <button class="dsp-lb-nav" style="left:16px" onclick="dspStepPhoto(-1)" title="Previous">‹</button>
+      <img id="dsp-lb-img" alt="Evidence photo">
+      <button class="dsp-lb-nav" style="right:16px" onclick="dspStepPhoto(1)" title="Next">›</button>`;
+    box.addEventListener('click', e => { if (e.target === box) dspClosePhoto(); });
+    document.body.appendChild(box);
+    document.addEventListener('keydown', e => {
+      if (!dspViewer) return;
+      if (e.key === 'Escape') dspClosePhoto();
+      if (e.key === 'ArrowRight') dspStepPhoto(1);
+      if (e.key === 'ArrowLeft') dspStepPhoto(-1);
+    });
+  }
+  box.style.display = 'flex';
+  dspShowPhoto();
+}
+function dspShowPhoto(){
+  const { it, idx } = dspViewer, p = it.photos[idx], src = `${BOT_URL}/disputes/file/${p.id}`;
+  document.getElementById('dsp-lb-img').src = src;
+  document.getElementById('dsp-lb-open').href = src;
+  document.getElementById('dsp-lb-cap').textContent = `${(dspM(it).driver ?? it.driver) || 'Report'} · ${dspFmtDay(it.date)} · photo ${idx+1} of ${it.photos.length}`;
+  document.querySelectorAll('#dsp-lightbox .dsp-lb-nav').forEach(b => b.style.visibility = it.photos.length > 1 ? 'visible' : 'hidden');
+}
+function dspStepPhoto(n){ if (!dspViewer) return; const len = dspViewer.it.photos.length; dspViewer.idx = (dspViewer.idx + n + len) % len; dspShowPhoto(); }
+function dspClosePhoto(){ dspViewer = null; const b = document.getElementById('dsp-lightbox'); if (b) b.style.display = 'none'; }
+
 let dspToastTimer;
 function dspToast(t){
   let el = document.getElementById('dsp-toast');
