@@ -1,5 +1,6 @@
 import os
 import re
+import hmac
 import json
 import requests
 import csv
@@ -8,11 +9,32 @@ from flask import Flask, request, jsonify, Response
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app)
+CORS(app, allow_headers=['Content-Type', 'X-Dashboard-Key'])
 
 UPSTASH_URL = os.environ.get("UPSTASH_REDIS_REST_URL")
 UPSTASH_TOKEN = os.environ.get("UPSTASH_REDIS_REST_TOKEN")
 SLACK_BOT_TOKEN = os.environ.get("SLACK_BOT_TOKEN")
+DASHBOARD_PASSWORD = os.environ.get("DASHBOARD_PASSWORD", "")
+
+# ═══════════════════════════════════════════════════
+# PASSWORD — every dashboard request must carry the password set in
+# DASHBOARD_PASSWORD on Render. Slack's own event posts and the home page stay open.
+# If DASHBOARD_PASSWORD isn't set yet, nothing is locked.
+# ═══════════════════════════════════════════════════
+OPEN_PATHS = {'/', '/slack/events'}
+
+@app.before_request
+def require_password():
+    if not DASHBOARD_PASSWORD or request.method == 'OPTIONS' or request.path in OPEN_PATHS:
+        return None
+    given = request.headers.get('X-Dashboard-Key') or request.args.get('key') or ''
+    if hmac.compare_digest(given.encode(), DASHBOARD_PASSWORD.encode()):
+        return None
+    return jsonify({'error': 'password_required'}), 401
+
+@app.route('/auth/check', methods=['GET'])
+def auth_check():
+    return jsonify({'status': 'ok'})
 
 def redis_set(key, value):
     try:

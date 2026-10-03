@@ -894,9 +894,78 @@
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
+  /* SIGN-IN SCREEN */
+  #rtdl-lock { position:fixed; inset:0; z-index:5000; display:none; align-items:center; justify-content:center; padding:24px;
+    background: radial-gradient(900px 500px at 20% 0%, rgba(46,116,181,0.25), transparent 60%), rgba(3,5,8,0.96);
+    backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px); }
+  #rtdl-lock.show { display:flex; }
+  .lock-card { width:min(380px,100%); background:linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.025)); border:1px solid rgba(255,255,255,0.1);
+    border-radius:18px; padding:28px; box-shadow:0 24px 60px -20px rgba(0,0,0,0.9); display:flex; flex-direction:column; gap:14px; }
+  .lock-card h2 { font-size:20px; letter-spacing:-0.02em; }
+  .lock-card p { color:var(--gray); font-size:13px; }
+  .lock-err { color:var(--red); font-size:12px; min-height:16px; }
 </style>
+<script>
+// ═══════════════════════════════════════════════════
+// PASSWORD — sends the saved password with every request to Rip,
+// and shows the sign-in screen when Rip says it's missing or wrong.
+// ═══════════════════════════════════════════════════
+(function(){
+  const BOT = 'https://rtdl-bot.onrender.com';
+  const STORE = 'rtdl-dashboard-key';
+  const getKey = () => { try { return localStorage.getItem(STORE) || ''; } catch { return ''; } };
+  window.rtdlKey = getKey;
+  window.rtdlWithKey = url => url + (url.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(getKey());
+  const realFetch = window.fetch.bind(window);
+  window.fetch = async (input, init = {}) => {
+    const url = typeof input === 'string' ? input : (input && input.url) || '';
+    if (!url.startsWith(BOT)) return realFetch(input, init);
+    const headers = new Headers(init.headers || (typeof input !== 'string' && input.headers) || {});
+    headers.set('X-Dashboard-Key', getKey());
+    const res = await realFetch(input, { ...init, headers });
+    if (res.status === 401) showLock(getKey() ? 'That password didn\'t work. Try again.' : '');
+    return res;
+  };
+  let lockShown = false;
+  function showLock(msg){
+    const box = document.getElementById('rtdl-lock');
+    if (!box) { document.addEventListener('DOMContentLoaded', () => showLock(msg), { once:true }); return; }
+    document.getElementById('rtdl-lock-err').textContent = msg || '';
+    if (lockShown) return;
+    lockShown = true;
+    box.classList.add('show');
+    setTimeout(() => document.getElementById('rtdl-lock-input').focus(), 50);
+  }
+  window.rtdlSignIn = async e => {
+    e.preventDefault();
+    const input = document.getElementById('rtdl-lock-input'), btn = document.getElementById('rtdl-lock-btn');
+    const key = input.value.trim();
+    if (!key) return;
+    btn.disabled = true; btn.textContent = 'Checking… (can take 30s if Rip is asleep)';
+    try {
+      const r = await realFetch(BOT + '/auth/check', { headers: { 'X-Dashboard-Key': key } });
+      if (r.ok) { try { localStorage.setItem(STORE, key); } catch {} location.reload(); return; }
+      document.getElementById('rtdl-lock-err').textContent = r.status === 401 ? 'That password didn\'t work. Try again.' : 'Rip answered with an error. Try again in a minute.';
+    } catch { document.getElementById('rtdl-lock-err').textContent = 'Couldn\'t reach Rip. Check your connection and try again.'; }
+    btn.disabled = false; btn.textContent = 'Unlock dashboard';
+  };
+  window.rtdlSignOut = () => { try { localStorage.removeItem(STORE); } catch {} location.reload(); };
+})();
+</script>
 </head>
 <body>
+
+<!-- SIGN-IN SCREEN -->
+<div id="rtdl-lock">
+  <form class="lock-card" onsubmit="rtdlSignIn(event)">
+    <div class="logo-wave" style="width:44px;height:44px;">RT</div>
+    <h2>Riptide Command Center</h2>
+    <p>Enter the dashboard password to load your data. You only need to do this once on each computer.</p>
+    <input class="input" id="rtdl-lock-input" type="password" placeholder="Password" autocomplete="current-password">
+    <div class="lock-err" id="rtdl-lock-err"></div>
+    <button class="btn btn-primary" id="rtdl-lock-btn" type="submit">Unlock dashboard</button>
+  </form>
+</div>
 
 <!-- HEADER -->
 <div class="header">
@@ -909,6 +978,7 @@
   </div>
   <div class="header-right">
     <div class="date-badge" id="liveClock">--:-- --</div>
+    <button class="btn btn-ghost" style="padding:6px 12px; font-size:12px;" onclick="rtdlSignOut()" title="Remove the saved password from this computer">🔒 Lock</button>
     <div style="position:relative;">
     <select id="locationToggle" onchange="switchLocation(this.value)" style="background:rgba(75,172,198,0.15);border:1px solid rgba(75,172,198,0.3);border-radius:20px;color:var(--wave);font-size:11px;font-weight:600;padding:4px 12px;cursor:pointer;outline:none;font-family:'Inter',sans-serif;">
       <option value="Mobile, AL — DFB1">📍 Mobile, AL — DFB1</option>
@@ -5173,7 +5243,7 @@ function dspRender(){
         <div class="dsp-head"><span class="dsp-driver">${dspEsc(driver || 'Driver not detected')}</span>
           ${it.reason ? `<span class="pill" style="background:${it.reason.color}22; color:${it.reason.color}">${it.reason.label}</span><span class="pill blue">${it.reason.metric}</span>` : ''}</div>
         <div class="dsp-quote">${dspEsc(it.text)}${it.replyText ? `<small>Thread: ${dspEsc(it.replyText.replace(/\s+/g,' '))}</small>` : ''}</div>
-        ${(it.photos||[]).length ? `<div class="dsp-photos">${it.photos.map((p,i) => `<button class="dsp-thumb" onclick="dspOpenPhoto('${it.id}',${i})" title="View photo ${i+1}"><img loading="lazy" src="${BOT_URL}/disputes/file/${p.id}?size=thumb" alt="Evidence photo ${i+1}" onerror="this.parentNode.classList.add('dsp-thumb-err'); this.remove()"></button>`).join('')}</div>` : ''}
+        ${(it.photos||[]).length ? `<div class="dsp-photos">${it.photos.map((p,i) => `<button class="dsp-thumb" onclick="dspOpenPhoto('${it.id}',${i})" title="View photo ${i+1}"><img loading="lazy" src="${rtdlWithKey(`${BOT_URL}/disputes/file/${p.id}?size=thumb`)}" alt="Evidence photo ${i+1}" onerror="this.parentNode.classList.add('dsp-thumb-err'); this.remove()"></button>`).join('')}</div>` : ''}
         <div class="dsp-ev">${ev(it.ds,'Driver Support contacted','No Driver Support mention')}${ev(it.files>0, `${it.files} screenshot${it.files>1?'s':''}`, 'No screenshots')}${ev(!!tba,'TBA','TBA missing')}</div>
         <div class="dsp-fields">TBA <input class="input dsp-tba" value="${dspEsc(tba)}" placeholder="TBA…" onchange="dspSave('${it.id}', {tba: this.value.trim().toUpperCase()})">
           Driver <input class="input" value="${dspEsc(driver)}" placeholder="Driver name" onchange="dspSave('${it.id}', {driver: this.value.trim()})"></div>
@@ -5202,7 +5272,7 @@ function dspRender(){
               ${edited ? `<button class="btn btn-ghost" onclick="dspResetDetails('${it.id}','${tba}')">Reset text</button>` : ''}
               <button class="btn btn-primary" onclick="dspCopyDetails('${it.id}','${tba}')">Copy details</button></div>
             ${(it.photos||[]).length ? `<div class="label" style="margin-top:12px;">Attachment: download a photo, then use Upload file</div>
-              <div class="dsp-dl">${it.photos.map((p,i) => `<a class="btn btn-ghost" href="${BOT_URL}/disputes/file/${p.id}?download=1">⬇ Photo ${i+1}</a>`).join('')}</div>` : ''}
+              <div class="dsp-dl">${it.photos.map((p,i) => `<a class="btn btn-ghost" href="${rtdlWithKey(`${BOT_URL}/disputes/file/${p.id}?download=1`)}">⬇ Photo ${i+1}</a>`).join('')}</div>` : ''}
           </div>`; }).join('') : `<div class="dsp-muted">Add the TBA above to build the dispute. Amazon's form needs one dispute per Tracking ID.</div>`}
       </div>
     </div>`;
@@ -5268,7 +5338,7 @@ function dspOpenPhoto(id, idx){
   dspShowPhoto();
 }
 function dspShowPhoto(){
-  const { it, idx } = dspViewer, p = it.photos[idx], src = `${BOT_URL}/disputes/file/${p.id}`;
+  const { it, idx } = dspViewer, p = it.photos[idx], src = rtdlWithKey(`${BOT_URL}/disputes/file/${p.id}`);
   document.getElementById('dsp-lb-img').src = src;
   document.getElementById('dsp-lb-open').href = src;
   document.getElementById('dsp-lb-cap').textContent = `${(dspM(it).driver ?? it.driver) || 'Report'} · ${dspFmtDay(it.date)} · photo ${idx+1} of ${it.photos.length}`;
