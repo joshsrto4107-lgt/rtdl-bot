@@ -402,6 +402,34 @@
   .dsp-lb-top button, .dsp-lb-nav { background:rgba(255,255,255,0.08); border:1px solid var(--border); color:var(--white); border-radius:8px; cursor:pointer; }
   .dsp-lb-top button { width:36px; height:36px; font-size:16px; }
   .dsp-lb-nav { position:absolute; top:50%; transform:translateY(-50%); width:44px; height:64px; font-size:28px; }
+
+  /* PAYROLL — DRIVER MESSAGES */
+  .pm-head { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap; margin-bottom:16px; }
+  .pm-controls { display:flex; align-items:center; gap:8px; }
+  .pm-stats { display:grid; grid-template-columns:repeat(4, minmax(0,1fr)); gap:10px; margin-bottom:16px; }
+  .pm-stats > div { background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:10px; padding:10px 14px; display:flex; align-items:baseline; gap:8px; }
+  .pm-stats b { font-family:'JetBrains Mono', monospace; font-size:22px; }
+  .pm-stats span { font-size:12px; color:var(--gray); }
+  .pm-tabs { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:14px; }
+  .pm-driver { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1.2fr); gap:16px; border:1px solid var(--border); border-radius:12px; padding:16px; margin-bottom:10px; background:rgba(255,255,255,0.02); }
+  .pm-driver.sent { border-left:3px solid var(--wave); }
+  .pm-driver.done { border-left:3px solid var(--green); opacity:.75; }
+  .pm-name { font-size:15px; font-weight:700; display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-bottom:10px; }
+  .pm-issue { display:grid; grid-template-columns:86px minmax(0,1fr); gap:8px; padding:8px 0; border-top:1px solid rgba(255,255,255,0.04); font-size:12.5px; }
+  .pm-issue:first-of-type { border-top:none; }
+  .pm-issue .d { font-family:'JetBrains Mono', monospace; color:var(--gray); font-size:12px; }
+  .pm-issue .c { font-weight:600; }
+  .pm-issue .x { color:var(--gray); overflow-wrap:anywhere; }
+  .pm-msg { display:flex; flex-direction:column; gap:8px; min-width:0; }
+  .pm-msg textarea { resize:vertical; line-height:1.5; font-size:13px; min-height:170px; }
+  .pm-actions { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .pm-actions .btn { padding:8px 14px; }
+  .pm-actions .meta { flex:1; font-size:11px; color:var(--gray); font-family:'JetBrains Mono', monospace; }
+  .pm-slack { margin-top:12px; font-size:13px; color:var(--gray); }
+  .pm-slack summary { cursor:pointer; }
+  .pm-pre { background:rgba(0,0,0,0.35); border:1px solid var(--border); border-radius:8px; padding:12px; font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--white); margin-bottom:8px; white-space:pre-wrap; }
+  @media (max-width:820px) { .pm-driver { grid-template-columns:minmax(0,1fr); } .pm-stats { grid-template-columns:repeat(2, minmax(0,1fr)); } }
+
   /* ═══════════════════════════════════════════════════
      POLISH LAYER — refines the look of every tab without touching section code.
      Delete this block to return to the previous style.
@@ -1762,6 +1790,39 @@
         <div class="stat-value yellow" id="pending-pto">0</div>
         <div class="stat-sub">Awaiting decision</div>
       </div>
+    </div>
+
+    <!-- Driver Messages: one ready-to-text message per driver -->
+    <div class="card mb-20" id="pm-card">
+      <div class="pm-head">
+        <div>
+          <div class="card-title" style="margin-bottom:4px;">📱 Driver Messages</div>
+          <div class="text-xs text-gray">One text per driver listing every ADP fix they need to make. Copy it, text it, then mark it sent.</div>
+        </div>
+        <div class="pm-controls">
+          <label class="label" for="pm-deadline" style="margin:0;">Fix by</label>
+          <input class="input" id="pm-deadline" placeholder="e.g. Monday 10 AM" style="width:170px;" oninput="pmSetDeadline(this.value)">
+        </div>
+      </div>
+      <div class="pm-stats">
+        <div><b id="pm-s-todo">0</b><span>drivers to text</span></div>
+        <div><b id="pm-s-issues">0</b><span>open fixes</span></div>
+        <div><b id="pm-s-sent">0</b><span>texted, waiting</span></div>
+        <div><b id="pm-s-done">0</b><span>fixed</span></div>
+      </div>
+      <div class="pm-tabs" id="pm-tabs"></div>
+      <div id="pm-list"></div>
+      <details class="pm-slack">
+        <summary>How to post a correction in Slack so Rip picks it up</summary>
+        <div class="text-xs text-gray" style="margin:8px 0;">Post this in <b>#payroll-corrections</b>. Keep the first line exactly as shown. Category can be: Incorrect Punch, Missing Lunch, No Flex Record, Early Logout, Training Punch.</div>
+        <pre class="pm-pre">Payroll Correction
+First Name: Keldrick
+Last Name: Jones
+Date: 9/29/2026
+Category: Missing Lunch
+Detail: No lunch punch on ADP</pre>
+        <button class="btn btn-ghost" style="font-size:12px; padding:6px 12px;" onclick="pmCopySlackTemplate()">Copy template</button>
+      </details>
     </div>
 
     <!-- Corrections Table -->
@@ -5354,6 +5415,160 @@ function dspToast(t){
   el.textContent = t; el.style.display = 'block'; clearTimeout(dspToastTimer); dspToastTimer = setTimeout(() => el.style.display = 'none', 2600);
 }
 dspRenderWeek();
+</script>
+<script>
+// ═══════════════════════════════════════════════════
+// PAYROLL — DRIVER MESSAGES
+// Groups open timecard corrections by driver and writes one text per driver
+// telling them what to fix in the ADP app. Works from uploaded review sheets
+// and Slack-posted corrections alike (both land in payrollCorrections).
+// ═══════════════════════════════════════════════════
+const PM_KNOWN = ['Incorrect Punch','Missing Lunch','No Flex Record','Early Logout','Training Punch','Short/Long Lunch'];
+const PM_SKIP = new Set(['Short/Long Lunch']);           // coaching conversations, not payroll fixes
+const PM_STATUS_WORDS = /^(reach out|good|fine|leave( it)?|resolved|fixed?|pending|ok|okay)\b/i;
+let pmTab = 'todo', pmShown = [];
+const pmEdits = {};                                       // driver key -> edited message text (this visit only)
+
+function pmGetDeadline(){ try { return localStorage.getItem('rtdl-pm-deadline') || ''; } catch { return ''; } }
+function pmSetDeadline(v){ try { localStorage.setItem('rtdl-pm-deadline', v); } catch {} pmRender(); }
+
+function pmCategory(c){
+  const raw = (c.category || '').trim();
+  return PM_KNOWN.includes(raw) ? raw : classifyCorrectionCategory(raw || 'other');
+}
+// The review sheet folds status words and manager notes into "detail"; keep only what the driver should see.
+function pmDetail(c){
+  const parts = String(c.detail || '').split('|').map(s => s.trim()).filter(Boolean);
+  const kept = parts.filter(p => !PM_STATUS_WORDS.test(p) && p !== (c.notes || '').trim());
+  return kept[0] || '';
+}
+function pmDate(raw){
+  const s = String(raw || '').trim();
+  if (!s) return 'that day';
+  const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(s) ? s + 'T12:00:00' : s);
+  return isNaN(d) ? s : d.toLocaleDateString('en-US', { weekday:'short', month:'numeric', day:'numeric' });
+}
+function pmLine(c){
+  const date = pmDate(c.date || c.correction_date), det = pmDetail(c), cat = pmCategory(c);
+  switch (cat) {
+    case 'Incorrect Punch': return `${date}: there's a punch that looks like a mispunch${det ? ` (${det})` : ''}. Delete it in ADP, or tell me if it's correct.`;
+    case 'Missing Lunch':   return `${date}: no lunch punch. Add your lunch out and lunch in.`;
+    case 'No Flex Record':  return `${date}: you're clocked in on ADP${det ? ` (${det})` : ''} but there's no Flex record. Tell me what you were doing that day.`;
+    case 'Early Logout':    return `${date}: your ADP clock-out is earlier than your Flex logout${det ? ` (${det})` : ''}. Fix your clock-out in ADP, or tell me which time is right.`;
+    case 'Training Punch':  return /missing day/i.test(det) ? `${date}: no clock in or clock out. Add both in ADP.` : `${date}: your hours don't line up${det ? ` (${det})` : ''}. Check your punches in ADP.`;
+    default:                return `${date}: ${det || 'please check your punches in ADP'}.`;
+  }
+}
+function pmKey(c){ return `${(c.first||'').trim()} ${(c.last||'').trim()}`.trim().toLowerCase(); }
+function pmName(c){ return `${(c.first||'').trim()} ${(c.last && c.last !== '—' ? c.last : '').trim()}`.trim() || 'Unknown driver'; }
+
+function pmDrivers(){
+  const groups = new Map();
+  (payrollCorrections || []).forEach(c => {
+    if (PM_SKIP.has(pmCategory(c))) return;
+    if (c.status === 'Good') return;                       // verified correct, nothing to send
+    const k = pmKey(c); if (!k) return;
+    if (!groups.has(k)) groups.set(k, { key:k, name:pmName(c), first:(c.first||'').trim(), items:[] });
+    groups.get(k).items.push(c);
+  });
+  return [...groups.values()].map(g => {
+    const open = g.items.filter(c => c.status !== 'Resolved');
+    const sentAll = open.length > 0 && open.every(c => c.messaged_at);
+    g.open = open;
+    g.state = open.length === 0 ? 'done' : sentAll ? 'sent' : 'todo';
+    g.sentAt = sentAll ? open.map(c => c.messaged_at).sort().pop() : '';
+    return g;
+  }).sort((a,b) => a.name.localeCompare(b.name));
+}
+function pmMessage(g){
+  if (pmEdits[g.key] != null) return pmEdits[g.key];
+  const items = g.open.length ? g.open : g.items;
+  const list = items.map(c => `• ${pmLine(c)}`).join('\n');
+  const deadline = pmGetDeadline().trim();
+  const n = items.length;
+  const lunch = items.some(c => pmCategory(c) === 'Missing Lunch');
+  return [
+    `Hey ${g.first || 'there'}, ${n === 1 ? 'one thing on your ADP timecard needs' : 'a few things on your ADP timecard need'} fixing before payroll runs:`,
+    list,
+    `Please fix ${n === 1 ? 'it' : 'these'} in the ADP app ${deadline ? 'by ' + deadline : 'as soon as you can'}. If anything here is wrong${lunch ? ', or you didn\'t take a lunch' : ''}, reply and I'll fix it on my end. Thanks!`
+  ].join('\n\n');
+}
+
+function pmRender(){
+  const card = document.getElementById('pm-card'); if (!card) return;
+  const dl = document.getElementById('pm-deadline');
+  if (dl && document.activeElement !== dl) dl.value = pmGetDeadline();
+  const drivers = pmDrivers();
+  const by = s => drivers.filter(g => g.state === s);
+  document.getElementById('pm-s-todo').textContent = by('todo').length;
+  document.getElementById('pm-s-issues').textContent = drivers.reduce((n,g) => n + g.open.length, 0);
+  document.getElementById('pm-s-sent').textContent = by('sent').length;
+  document.getElementById('pm-s-done').textContent = by('done').length;
+
+  const tabs = [['todo','To text'],['sent','Texted'],['done','Fixed'],['all','All']];
+  document.getElementById('pm-tabs').innerHTML = tabs.map(([k,l]) =>
+    `<button class="dsp-chip ${pmTab===k?'active':''}" onclick="pmTab='${k}'; pmRender()">${l} <span style="opacity:.6">${k==='all' ? drivers.length : by(k).length}</span></button>`).join('');
+
+  const rows = pmTab === 'all' ? drivers : by(pmTab);
+  const list = document.getElementById('pm-list');
+  if (!rows.length){
+    const empty = { todo: drivers.length ? 'Everyone with an open fix has been texted.' : 'No open timecard fixes. Upload a review sheet or post a correction in Slack and drivers show up here.', sent: 'No drivers waiting on a fix right now.', done: 'Nothing marked fixed yet.', all: 'No timecard corrections yet.' }[pmTab];
+    list.innerHTML = `<div style="text-align:center; color:var(--gray); padding:24px; font-size:13px;">${empty}</div>`;
+    return;
+  }
+  pmShown = rows;
+  list.innerHTML = rows.map((g, i) => {
+    const msg = pmMessage(g), shown = g.open.length ? g.open : g.items;
+    const pill = g.state === 'done' ? '<span class="pill green">Fixed</span>' : g.state === 'sent' ? '<span class="pill blue">Texted</span>' : '<span class="pill red">To text</span>';
+    return `<div class="pm-driver ${g.state}">
+      <div>
+        <div class="pm-name">${dspEsc(g.name)} ${pill} <span class="text-xs text-gray" style="font-weight:400">${shown.length} fix${shown.length===1?'':'es'}</span></div>
+        ${shown.map(c => `<div class="pm-issue"><span class="d">${dspEsc(pmDate(c.date || c.correction_date))}</span><div><div class="c">${dspEsc(pmCategory(c))}</div>${pmDetail(c) ? `<div class="x">${dspEsc(pmDetail(c))}</div>` : ''}${c.notes ? `<div class="x">Your note: ${dspEsc(c.notes)}</div>` : ''}</div></div>`).join('')}
+      </div>
+      <div class="pm-msg">
+        <textarea class="input" id="pm-msg-${i}" oninput="pmEdit(${i}, this.value)">${dspEsc(msg)}</textarea>
+        <div class="pm-actions">
+          <span class="meta">${msg.length} characters${g.sentAt ? ' · texted ' + new Date(g.sentAt).toLocaleDateString('en-US',{month:'short',day:'numeric'}) : ''}</span>
+          ${pmEdits[g.key] != null ? `<button class="btn btn-ghost" onclick="pmResetMsg(${i})">Reset</button>` : ''}
+          <button class="btn btn-primary" onclick="pmCopy(${i})">Copy text</button>
+          ${g.state === 'todo' ? `<button class="btn btn-ghost" onclick="pmMark(${i},'sent')">Mark texted</button>` : ''}
+          ${g.state !== 'done' ? `<button class="btn btn-ghost" style="color:var(--green)" onclick="pmMark(${i},'done')">✓ Fixed</button>` : `<button class="btn btn-ghost" onclick="pmMark(${i},'reopen')">Reopen</button>`}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+// Buttons pass the driver's position in the list on screen (names can contain quotes).
+function pmAt(i){ const g = pmShown[i]; return g ? pmDrivers().find(x => x.key === g.key) : null; }
+function pmEdit(i, v){ const g = pmShown[i]; if (g) pmEdits[g.key] = v; }
+function pmResetMsg(i){ const g = pmShown[i]; if (g) { delete pmEdits[g.key]; pmRender(); } }
+function pmCopy(i){
+  const g = pmAt(i); if (!g) return;
+  const ta = document.getElementById('pm-msg-' + i);
+  dspCopy(ta ? ta.value : pmMessage(g), `Text for ${g.name} copied.`);
+}
+async function pmMark(i, action){
+  const g = pmAt(i); if (!g) return;
+  const now = new Date().toISOString();
+  const targets = action === 'reopen' ? g.items : g.open;
+  const patch = action === 'sent' ? { messaged_at: now, status: 'Reach Out' }
+              : action === 'done' ? { status: 'Resolved', fixed_at: now }
+              : { status: 'Reach Out', messaged_at: '' };
+  targets.forEach(c => Object.assign(c, patch));
+  pmRender(); renderPayroll();
+  const results = await Promise.all(targets.map(c =>
+    fetch(`${BOT_URL}/update/payroll_correction/${c.id}`, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(patch) })
+      .then(r => r.ok).catch(() => false)));
+  if (results.some(ok => !ok)) dspToast('Some changes didn\'t save. Refresh and try again.');
+  else dspToast(action === 'sent' ? `${g.name} marked texted.` : action === 'done' ? `${g.name} marked fixed.` : `${g.name} reopened.`);
+}
+function pmCopySlackTemplate(){
+  dspCopy('Payroll Correction\nFirst Name: \nLast Name: \nDate: \nCategory: \nDetail: ', 'Slack template copied.');
+}
+// Re-draw driver messages whenever the Payroll tab re-draws.
+const pmBaseRenderPayroll = renderPayroll;
+renderPayroll = function(){ pmBaseRenderPayroll.apply(this, arguments); try { pmRender(); } catch (e) { console.error('pmRender failed:', e); } };
+pmRender();
 </script>
 </body>
 </html>
